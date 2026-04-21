@@ -356,12 +356,12 @@ announcementText:{fontSize:14,color:'var(--text-muted)',marginBottom:20},
 announcementBtn:{padding:'14px 28px',background:'var(--success)',border:'1px solid var(--success)',borderRadius:8,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.3,textDecoration:'none',display:'inline-block'},
 offlineBar:{position:'fixed',top:'calc(env(safe-area-inset-top) + 4px)',left:'50%',transform:'translateX(-50%)',background:'#dc2626',color:'#fff',fontSize:10,fontWeight:700,padding:'3px 10px',borderRadius:12,zIndex:600,fontFamily:"'JetBrains Mono',monospace",letterSpacing:1,boxShadow:'0 2px 8px rgba(0,0,0,0.25)'},
 // ── Mobile overrides ──────────────────────────────────────────────────
-sidebarMobile:{position:'fixed',top:0,bottom:0,left:0,width:'82%',maxWidth:320,zIndex:500,transform:'translateX(-100%)',transition:'transform 0.24s cubic-bezier(0.4,0,0.2,1)',boxShadow:'none'},
+sidebarMobile:{position:'fixed',top:0,bottom:0,left:0,width:'82%',maxWidth:320,zIndex:500,transform:'translateX(-100%)',transition:'transform 0.24s cubic-bezier(0.4,0,0.2,1)',boxShadow:'none',paddingTop:'env(safe-area-inset-top)',paddingBottom:'env(safe-area-inset-bottom)'},
 sidebarMobileOpen:{transform:'translateX(0)',boxShadow:'6px 0 24px rgba(0,0,0,0.25)'},
 backdrop:{position:'fixed',inset:0,background:'rgba(10,21,32,0.55)',backdropFilter:'blur(2px)',zIndex:400,opacity:0,pointerEvents:'none',transition:'opacity 0.24s'},
 backdropOpen:{opacity:1,pointerEvents:'auto'},
 burgerBtn:{width:36,height:36,borderRadius:8,border:'1px solid var(--border)',background:'var(--bg-panel)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,color:'var(--text)',fontSize:18,padding:0},
-headerMobile:{padding:'10px 12px',gap:8},
+headerMobile:{padding:'10px 12px',paddingTop:'calc(10px + env(safe-area-inset-top))',gap:8},
 headerTitleMobile:{fontSize:16},
 headerKickerMobile:{fontSize:8,marginBottom:2},
 headerMetaMobile:{fontSize:11,marginTop:2},
@@ -829,7 +829,7 @@ return (<div style={s.app}>
 <div style={s.main}>
   {!channel ? (
     <div style={{...s.empty,height:'100%'}}>
-      {isMobile && <button style={{...s.burgerBtn, position:'absolute', top:12, left:12}} onClick={()=>setDrawerOpen(true)}>☰</button>}
+      {isMobile && <button style={{...s.burgerBtn, position:'absolute', top:'calc(12px + env(safe-area-inset-top))', left:12}} onClick={()=>setDrawerOpen(true)}>☰</button>}
       <span style={s.emptyIcon}>🏗️</span>
       <span style={s.emptyText}>Select or create a channel</span>
       {isMobile
