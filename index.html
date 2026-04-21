@@ -355,6 +355,19 @@ announcementTitle:{fontSize:20,fontWeight:700,color:'var(--text)',marginBottom:8
 announcementText:{fontSize:14,color:'var(--text-muted)',marginBottom:20},
 announcementBtn:{padding:'14px 28px',background:'var(--success)',border:'1px solid var(--success)',borderRadius:8,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.3,textDecoration:'none',display:'inline-block'},
 offlineBar:{position:'fixed',top:'calc(env(safe-area-inset-top) + 4px)',left:'50%',transform:'translateX(-50%)',background:'#dc2626',color:'#fff',fontSize:10,fontWeight:700,padding:'3px 10px',borderRadius:12,zIndex:600,fontFamily:"'JetBrains Mono',monospace",letterSpacing:1,boxShadow:'0 2px 8px rgba(0,0,0,0.25)'},
+// ── Mobile overrides ──────────────────────────────────────────────────
+sidebarMobile:{position:'fixed',top:0,bottom:0,left:0,width:'82%',maxWidth:320,zIndex:500,transform:'translateX(-100%)',transition:'transform 0.24s cubic-bezier(0.4,0,0.2,1)',boxShadow:'none'},
+sidebarMobileOpen:{transform:'translateX(0)',boxShadow:'6px 0 24px rgba(0,0,0,0.25)'},
+backdrop:{position:'fixed',inset:0,background:'rgba(10,21,32,0.55)',backdropFilter:'blur(2px)',zIndex:400,opacity:0,pointerEvents:'none',transition:'opacity 0.24s'},
+backdropOpen:{opacity:1,pointerEvents:'auto'},
+burgerBtn:{width:36,height:36,borderRadius:8,border:'1px solid var(--border)',background:'var(--bg-panel)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,color:'var(--text)',fontSize:18,padding:0},
+headerMobile:{padding:'10px 12px',gap:8},
+headerTitleMobile:{fontSize:16},
+headerKickerMobile:{fontSize:8,marginBottom:2},
+headerMetaMobile:{fontSize:11,marginTop:2},
+threadBarMobile:{padding:'8px 12px'},
+contentMobile:{padding:'14px'},
+ramsBarMobile:{padding:'8px 12px',fontSize:11,gap:6},
 };
 
 function useStorage(key, init) {
@@ -368,6 +381,16 @@ function useTheme() {
 const [theme, setTheme] = useState(() => { try { return localStorage.getItem('ral-theme') || 'light'; } catch { return 'light'; } });
 useEffect(() => { document.documentElement.setAttribute('data-theme', theme); try { localStorage.setItem('ral-theme', theme); } catch {} }, [theme]);
 return [theme, setTheme];
+}
+function useIsMobile() {
+const [m, setM] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches);
+useEffect(() => {
+  const mq = window.matchMedia('(max-width: 760px)');
+  const h = () => setM(mq.matches);
+  mq.addEventListener ? mq.addEventListener('change', h) : mq.addListener(h);
+  return () => { mq.removeEventListener ? mq.removeEventListener('change', h) : mq.removeListener(h); };
+}, []);
+return m;
 }
 function formatDate(iso) { if(!iso) return '—'; return new Date(iso+'T00:00:00').toLocaleDateString('en-NZ', {day:'numeric',month:'short',year:'numeric'}); }
 function formatShortDate(iso) { if(!iso) return '—'; return new Date(iso+'T00:00:00').toLocaleDateString('en-NZ', {day:'numeric',month:'short'}); }
@@ -496,7 +519,7 @@ if(!mentions.open || mentions.matches.length === 0) return null;
 const pos = dropUp ? {bottom:'100%', marginBottom:6} : {top:'100%', marginTop:6};
 return (
 <div style={{...s.mentionDrop, ...pos, left:0}}>
-{mentions.matches.map((c, i) => { const cat = getCategory(c.categoryId); const isActive = i === mentions.activeIdx; const hash = c.type === 'job' ? '◆' : c.type === 'materials' ? '🧰' : '#';
+{mentions.matches.map((c, i) => { const cat = getCategory(c.categoryId); const isActive = i === mentions.activeIdx; const hash = c.type === 'job' ? '◆' : c.type === 'materials' ? '' : '#';
 return (<div key={c.id} style={{...s.mentionItem, ...(isActive ? s.mentionItemActive : {})}} onMouseEnter={() => mentions.setActiveIdx(i)} onClick={() => mentions.insert(c, inputRef)}><span style={s.mentionItemHash}>{hash}</span><span>{c.name}</span><span style={s.mentionItemMeta}>{cat?.name || ''}</span></div>); })}
 </div>
 );
@@ -651,16 +674,15 @@ return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}><div 
 
 // ── RAMS IFRAME VIEW ────────────────────────────────────────────────────────
 // Embeds the RAMS form inside the project, pre-filled with project data via URL params.
-function RamsEmbedView({project}) {
+function RamsEmbedView({project, isMobile}) {
 const url = buildRamsUrl(project);
 return (
 <div style={s.ramsWrap}>
-<div style={s.ramsBar}>
+<div style={isMobile ? {...s.ramsBar, ...s.ramsBarMobile} : s.ramsBar}>
 <span style={s.ramsBarKicker}>RAMS</span>
-<span style={{fontWeight:600,color:'var(--text)'}}>{project.name}</span>
-<span style={{color:'var(--text-dim)'}}>·</span>
-<span style={{fontSize:11,color:'var(--text-dim)'}}>Project data is pre-filled into the form below. Review and complete it.</span>
-<a href={url} target="_blank" rel="noreferrer" style={{...s.copyBtn, marginLeft:'auto', textDecoration:'none'}}>↗ Open full screen</a>
+<span style={{fontWeight:600,color:'var(--text)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0,flex:isMobile?1:'0 1 auto'}}>{project.name}</span>
+{!isMobile && <><span style={{color:'var(--text-dim)'}}>·</span><span style={{fontSize:11,color:'var(--text-dim)'}}>Project data is pre-filled into the form below. Review and complete it.</span></>}
+<a href={url} target="_blank" rel="noreferrer" style={{...s.copyBtn, marginLeft:isMobile?0:'auto', textDecoration:'none',flexShrink:0}}>↗ {isMobile?'Full':'Open full screen'}</a>
 </div>
 <iframe
   src={url}
@@ -673,7 +695,7 @@ return (
 );
 }
 
-function ThreadView({channel, thread, notes, setNotes, allChannels, incidents, onIncidentSubmit, onIncidentDelete, onMentionClick, onJumpToProject, onUpdateMaterials, onAddMaterial, calendarEntries, onNewBooking, onEditBooking, onDeleteBooking, getCategory, allJobs, timesheets, onAddTimesheet, onConfirmTimesheet, onDeleteTimesheet, onBulkConfirmTimesheet, crew, onAddCrew, onRemoveCrew}) {
+function ThreadView({channel, thread, notes, setNotes, allChannels, incidents, onIncidentSubmit, onIncidentDelete, onMentionClick, onJumpToProject, onUpdateMaterials, onAddMaterial, calendarEntries, onNewBooking, onEditBooking, onDeleteBooking, getCategory, allJobs, timesheets, onAddTimesheet, onConfirmTimesheet, onDeleteTimesheet, onBulkConfirmTimesheet, crew, onAddCrew, onRemoveCrew, isMobile}) {
 if(channel.type === 'plain') { if(channel.name === '📢announcements') { return <AnnouncementsView channel={channel} notes={notes} setNotes={setNotes} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>; } return <NotesFeed channelId={channel.id} threadId="main" notes={notes} setNotes={setNotes} placeholder={`Post in ${channel.name}... (type # to mention)`} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>; }
 if(channel.type === 'materials') return <MaterialsView channel={channel} onUpdate={onUpdateMaterials} onAdd={onAddMaterial}/>;
 if(channel.type === 'calendar') return <CalendarView entries={calendarEntries} jobChannels={allJobs} allChannels={allChannels} getCategory={getCategory} onNewBooking={onNewBooking} onEditBooking={onEditBooking} onDeleteBooking={onDeleteBooking} onJumpToProject={onJumpToProject} onMentionClick={onMentionClick}/>;
@@ -692,7 +714,7 @@ return <NotesFeed channelId={channel.id} threadId={thread.id} notes={notes} setN
 
 function CategoryBlock({category, channels, activeId, onSelect, onAddChannel, onEditCategory, getColor, onDragStart, onDragOver, onDrop, isDragging}) {
 const [open, setOpen] = useState(!category.collapsed); const dragHandleRef = useRef(null);
-return (<div style={{...s.catWrap, ...(isDragging ? s.catWrapDragging : {})}} draggable={true} onDragStart={(e) => onDragStart(e, category)} onDragOver={onDragOver} onDrop={(e) => onDrop(e, category)} data-category-id={category.id}><div style={s.catHeader}><span onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0}}><span style={{...s.catCaret, transform: open?'rotate(90deg)':'rotate(0deg)'}}>▶</span><span style={s.catEmoji}>{category.emoji}</span><span style={s.catLabel}>{category.name}</span></span><span style={s.catCount}>{channels.length}</span>{category.system !== 'incidents' && category.system !== 'timesheets' && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onAddChannel(category);}}>+</button>)}{!category.system && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onEditCategory(category);}}>✎</button>)}<span style={s.catDragHandle} ref={dragHandleRef}>⋮⋮</span></div>{open && channels.map(ch => { const isActive = activeId === ch.id; const isDone = ch.status === 'done'; let hash = '#'; if(ch.type === 'job') hash = '◆'; else if(ch.type === 'materials') hash = '🧰'; else if(ch.type === 'calendar') hash = ''; else if(ch.type === 'incidents-bin') { const t = INCIDENT_TYPES.find(t => t.id === ch.incidentType); hash = t?.emoji || '⚠️'; } else if(ch.type === 'ts-overview') hash = ''; else if(ch.type === 'ts-project') hash = ''; else if(ch.type === 'roster') hash = ''; else if(ch.type === 'plain') hash = ''; const col = ch.type === 'job' && ch.colorId && ch.status !== 'done' ? getColor(ch.colorId) : null; const tsCol = ch.type === 'ts-project' && ch.colorId ? getColor(ch.colorId) : null; return (<div key={ch.id} style={{...s.chanItem, ...(isActive?s.chanItemActive:{}), ...(isDone?s.chanItemDone:{})}} onClick={()=>onSelect(ch.id)}><span style={s.chanHash}>{hash}</span><span style={{...s.chanName, ...(isActive?s.chanNameActive:{})}}>{ch.name}</span>{col && <span style={{...s.chanDot, background:col.bar}}/>}{tsCol && <span style={{...s.chanDot, background:tsCol.bar}}/>}</div>); })}{open && channels.length === 0 && <div style={s.emptyCat}>no channels yet</div>}</div>);
+return (<div style={{...s.catWrap, ...(isDragging ? s.catWrapDragging : {})}} draggable={true} onDragStart={(e) => onDragStart(e, category)} onDragOver={onDragOver} onDrop={(e) => onDrop(e, category)} data-category-id={category.id}><div style={s.catHeader}><span onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0}}><span style={{...s.catCaret, transform: open?'rotate(90deg)':'rotate(0deg)'}}>▶</span><span style={s.catEmoji}>{category.emoji}</span><span style={s.catLabel}>{category.name}</span></span><span style={s.catCount}>{channels.length}</span>{category.system !== 'incidents' && category.system !== 'timesheets' && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onAddChannel(category);}}>+</button>)}{!category.system && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onEditCategory(category);}}>✎</button>)}<span style={s.catDragHandle} ref={dragHandleRef}>⋮⋮</span></div>{open && channels.map(ch => { const isActive = activeId === ch.id; const isDone = ch.status === 'done'; let hash = '#'; if(ch.type === 'job') hash = '◆'; else if(ch.type === 'materials') hash = ''; else if(ch.type === 'calendar') hash = ''; else if(ch.type === 'incidents-bin') { const t = INCIDENT_TYPES.find(t => t.id === ch.incidentType); hash = t?.emoji || '⚠️'; } else if(ch.type === 'ts-overview') hash = ''; else if(ch.type === 'ts-project') hash = ''; else if(ch.type === 'roster') hash = ''; else if(ch.type === 'plain') hash = ''; const col = ch.type === 'job' && ch.colorId && ch.status !== 'done' ? getColor(ch.colorId) : null; const tsCol = ch.type === 'ts-project' && ch.colorId ? getColor(ch.colorId) : null; return (<div key={ch.id} style={{...s.chanItem, ...(isActive?s.chanItemActive:{}), ...(isDone?s.chanItemDone:{})}} onClick={()=>onSelect(ch.id)}><span style={s.chanHash}>{hash}</span><span style={{...s.chanName, ...(isActive?s.chanNameActive:{})}}>{ch.name}</span>{col && <span style={{...s.chanDot, background:col.bar}}/>}{tsCol && <span style={{...s.chanDot, background:tsCol.bar}}/>}</div>); })}{open && channels.length === 0 && <div style={s.emptyCat}>no channels yet</div>}</div>);
 }
 
 // ── PWA install button in the sidebar footer ────────────────────────────────
@@ -722,6 +744,9 @@ return null;
 function App() {
 const [theme, setTheme] = useTheme(); const [data, setData] = useStorage('ral-data-v5', null); const [notes, setNotes] = useStorage('ral-notes', {}); const [incidents, setIncidents] = useStorage('ral-incidents', []); const [calendarEntries, setCalendarEntries] = useStorage('ral-calendar-v2', null); const [crew, setCrew] = useStorage('ral-crew', [{id:'c1',name:'Lionel'},{id:'c2',name:'Felipe'},{id:'c3',name:'Mike'},{id:'c4',name:'Dave'}]); const [timesheets, setTimesheets] = useStorage('ral-timesheets', null); const [activeId, setActiveId] = useState(null); const [activeThreadId, setActiveThreadId] = useState('info'); const [showJobWizard, setShowJobWizard] = useState(false); const [editingJob, setEditingJob] = useState(null); const [jobTargetCategory, setJobTargetCategory] = useState('cat-run'); const [showShare, setShowShare] = useState(false); const [showCategoryModal, setShowCategoryModal] = useState(false); const [editingCategory, setEditingCategory] = useState(null); const [showTypePicker, setShowTypePicker] = useState(null); const [showAddThread, setShowAddThread] = useState(false); const [showIncidentForm, setShowIncidentForm] = useState(false); const [showAddMaterial, setShowAddMaterial] = useState(false); const [bookingModal, setBookingModal] = useState(null); const [sharedChannel, setSharedChannel] = useState(null); const [showTimesheetModal, setShowTimesheetModal] = useState(null); const [draggedCategory, setDraggedCategory] = useState(null);
 const [isOnline, setIsOnline] = useState(typeof navigator==='undefined' || navigator.onLine!==false);
+const isMobile = useIsMobile();
+const [drawerOpen, setDrawerOpen] = useState(false);
+useEffect(() => { if(!isMobile) setDrawerOpen(false); }, [isMobile]);
 useEffect(() => {
   const on = () => setIsOnline(true); const off = () => setIsOnline(false);
   window.addEventListener('online', on); window.addEventListener('offline', off);
@@ -758,12 +783,107 @@ const confirmTimesheetEntry = (id) => { setTimesheets(prev => (prev||[]).map(e =
 const deleteTimesheetEntry = (id) => { if(confirm('Delete this timesheet entry?')) setTimesheets(prev => (prev||[]).filter(e => e.id !== id)); };
 const bulkConfirmTimesheet = () => { if(!channel) return; setTimesheets(prev => (prev||[]).map(e => e.projectId === channel.id && e.status === 'pending' ? {...e, status:'confirmed'} : e)); };
 const addCrew = (member) => setCrew(prev => [...prev, member]); const removeCrew = (id) => setCrew(prev => prev.filter(c => c.id !== id));
-const selectChannel = (id) => { setActiveId(id); setActiveThreadId('info'); }; const handleMentionClick = (id) => selectChannel(id);
+const selectChannel = (id) => { setActiveId(id); setActiveThreadId('info'); if(isMobile) setDrawerOpen(false); }; const handleMentionClick = (id) => selectChannel(id);
 const allThreads = channel && channel.type === 'job' ? [...(channel.customThreads || []), ...DEFAULT_THREADS] : []; const currentThread = allThreads.find(t => t.id === activeThreadId) || allThreads[0]; const currentCategory = channel ? d.categories.find(c => c.id === channel.categoryId) : null; const channelColor = channel && channel.type === 'job' && channel.colorId && channel.status !== 'done' ? getColor(channel.colorId) : null;
 const isRamsTab = channel && channel.type === 'job' && activeThreadId === 'rams';
+
+const sidebarStyle = isMobile
+  ? {...s.sidebar, ...s.sidebarMobile, ...(drawerOpen ? s.sidebarMobileOpen : {})}
+  : s.sidebar;
+const headerStyle = isMobile ? {...s.header, ...s.headerMobile} : s.header;
+const headerKickerStyle = isMobile ? {...s.headerKicker, ...s.headerKickerMobile} : s.headerKicker;
+const headerTitleStyle = isMobile ? {...s.headerTitle, ...s.headerTitleMobile} : s.headerTitle;
+const headerMetaStyle = isMobile ? {...s.headerMeta, ...s.headerMetaMobile} : s.headerMeta;
+const threadBarStyle = isMobile ? {...s.threadBar, ...s.threadBarMobile} : s.threadBar;
+const contentStyle = isRamsTab ? s.contentNoPad : (isMobile ? {...s.content, ...s.contentMobile} : s.content);
+
 return (<div style={s.app}>
 {!isOnline && <div style={s.offlineBar}>⚠ OFFLINE — saving locally</div>}
-<div style={s.sidebar}><div style={s.serverHeader}><div style={s.serverIcon}>RAL</div><div style={s.serverMeta}><div style={s.serverSmallCap}>Server</div><div style={s.serverName}>RAL</div></div><button style={s.themeToggle} onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '🌙' : '☀️'}</button></div><div style={s.actionBar}><button style={s.actionBtn} onClick={() => { setEditingJob(null); setJobTargetCategory('cat-run'); setShowJobWizard(true); }}>+ NEW PROJECT</button><button style={s.actionBtn} onClick={() => { setEditingCategory(null); setShowCategoryModal(true); }}>+ CATEGORY</button></div><div style={s.projList}>{sortedCategories.map(cat => (<CategoryBlock key={cat.id} category={cat} channels={channelsByCat(cat.id)} activeId={activeId} onSelect={selectChannel} getColor={getColor} onAddChannel={(c) => { if(c.system === 'running') { setEditingJob(null); setJobTargetCategory(c.id); setShowJobWizard(true); } else { setShowTypePicker({category: c}); } }} onEditCategory={(c) => { setEditingCategory(c); setShowCategoryModal(true); }} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDragging={draggedCategory?.id === cat.id}/>))}</div><div style={{padding:'8px 12px 12px',borderTop:'1px solid var(--border)'}}><InstallButton/></div></div><div style={s.main}>{!channel ? <div style={{...s.empty,height:'100%'}}><span style={s.emptyIcon}>🏗️</span><span style={s.emptyText}>Select or create a channel</span><button style={s.primaryBtn} onClick={() => { setEditingJob(null); setJobTargetCategory('cat-run'); setShowJobWizard(true); }}>+ New project</button></div> : <><div style={s.header}><div style={s.headerTitleWrap}><div style={s.headerKicker}>{currentCategory ? `${currentCategory.emoji} ${currentCategory.name}` : ''}{channel.status === 'done' && ' · done'}</div><div style={s.headerTitle}>{channelColor && <span style={{...s.headerColorDot, background:channelColor.bar}}/>}{channel.type === 'ts-project' ? '🏢 ' + channel.name : (channel.type === 'plain' || channel.type === 'materials' || channel.type === 'calendar' || channel.type === 'incidents-bin' || channel.type === 'ts-overview' || channel.type === 'roster') ? channel.name : channel.name}</div><div style={s.headerMeta}>{channel.type === 'job' ? `${channel.address || 'No address'} · Started ${formatDate(channel.startDate)}` : channel.name === '📢announcements' ? 'Company-wide announcements — join WhatsApp group' : channel.type === 'materials' ? 'Materials list' : channel.type === 'calendar' ? 'Work calendar — bookings & crew scheduling' : channel.type === 'incidents-bin' ? 'All ' + channel.name + ' reports across projects' : channel.type === 'ts-overview' ? 'View hours per worker and project — filter by date range for invoicing' : channel.type === 'ts-project' ? 'All workers\' hours on this project' : channel.type === 'roster' ? 'Manage crew members — names appear in timesheet dropdowns' : 'Plain channel'}</div></div><div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>{channel.type === 'job' && channel.whatsapp && (<a href={channel.whatsapp} target="_blank" rel="noreferrer" style={{...s.badge,...s.badgeSuccess,textDecoration:'none'}}>💬 Chat</a>)}{channel.type !== 'job' && channel.whatsappLink && (<a href={channel.whatsappLink} target="_blank" rel="noreferrer" style={{...s.badge,...s.badgeSuccess,textDecoration:'none'}}>💬 WhatsApp</a>)}{channel.type === 'plain' && !channel.whatsappLink && (<button style={{...s.badge,...s.badgeGhost}} onClick={() => { const link = prompt('Paste WhatsApp group invite link:'); if(link && link.trim()) updateData(prev => ({...prev, channels: prev.channels.map(c => c.id === channel.id ? {...c, whatsappLink: link.trim()} : c)})); }}>💬 Set WhatsApp</button>)}{channel.type === 'job' && (<><button style={{...s.badge,...s.badgePrimary}} onClick={() => setShowShare(true)}>↗ Share</button><button style={{...s.badge,...s.badgeGhost}} onClick={() => toggleStatus(channel.id)}>{channel.status === 'done' ? '↻ Re-open' : '✓ Done'}</button><button style={{...s.badge,...s.badgeGhost}} onClick={() => { setEditingJob(channel); setShowJobWizard(true); }}>✏ Edit</button></>)}{channel.type !== 'incidents-bin' && channel.type !== 'ts-overview' && channel.type !== 'ts-project' && channel.type !== 'roster' && (<button style={{...s.badge,...s.badgeGhost}} onClick={() => deleteChannel(channel.id)}>🗑</button>)}</div></div>{channel.type === 'job' && (<div style={s.threadBar}><button style={s.threadAdd} onClick={() => setShowAddThread(true)} title="Add custom thread">+</button>{(channel.customThreads || []).length > 0 && <div style={s.threadDivider}/>}{allThreads.map(t => (<button key={t.id} style={{...s.threadBtn, ...(activeThreadId===t.id ? s.threadBtnActive : {})}} onClick={() => setActiveThreadId(t.id)}><span>{t.icon}</span><span>{t.label}</span>{!t.fixed && activeThreadId===t.id && (<span style={s.threadRemove} onClick={(e) => { e.stopPropagation(); removeCustomThread(t.id); }}>×</span>)}</button>))}</div>)}<div style={isRamsTab ? s.contentNoPad : s.content}><ThreadView channel={channel} thread={currentThread} notes={notes} setNotes={setNotes} allChannels={allChannelsIncludingDynamic} incidents={incidents} onIncidentSubmit={() => setShowIncidentForm(true)} onIncidentDelete={deleteIncident} onMentionClick={handleMentionClick} onJumpToProject={selectChannel} onUpdateMaterials={updateMaterials} onAddMaterial={() => setShowAddMaterial(true)} calendarEntries={calendarEntries || []} onNewBooking={(date) => setBookingModal({defaultDate: date})} onEditBooking={(entry) => setBookingModal({editing: entry})} onDeleteBooking={deleteBooking} getCategory={getCategory} allJobs={allJobs} timesheets={timesheets || []} onAddTimesheet={() => setShowTimesheetModal({projectId:channel.id, projectName:channel.name})} onConfirmTimesheet={confirmTimesheetEntry} onDeleteTimesheet={deleteTimesheetEntry} onBulkConfirmTimesheet={bulkConfirmTimesheet} crew={crew} onAddCrew={addCrew} onRemoveCrew={removeCrew}/></div></>}</div>{showJobWizard && (<JobWizard onClose={() => setShowJobWizard(false)} onSave={saveJob} editing={editingJob}/>)}{showShare && channel && channel.type === 'job' && (<ShareModal channel={channel} onClose={() => setShowShare(false)}/>)}{showCategoryModal && (<CategoryModal onClose={() => { setShowCategoryModal(false); setEditingCategory(null); }} onSave={saveCategory} editing={editingCategory}/>)}{showTypePicker && (<ChannelTypePicker onClose={() => setShowTypePicker(null)} categoryName={showTypePicker.category.name} onPickJob={() => { setJobTargetCategory(showTypePicker.category.id); setEditingJob(null); setShowTypePicker(null); setShowJobWizard(true); }} onPickPlain={(name) => createPlainChannel(showTypePicker.category.id, name)} onPickMaterials={(name) => createMaterialsChannel(showTypePicker.category.id, name)} onPickCalendar={(name) => createCalendarChannel(showTypePicker.category.id, name)}/>)}{showAddThread && <AddThreadModal onClose={() => setShowAddThread(false)} onSave={addCustomThread}/>}{showIncidentForm && channel && channel.type === 'job' && (<IncidentFormModal onClose={() => setShowIncidentForm(false)} onSave={submitIncident} project={channel}/>)}{showAddMaterial && <AddMaterialModal onClose={() => setShowAddMaterial(false)} onSave={addMaterial}/>}{bookingModal && (<CalendarBookingModal onClose={() => setBookingModal(null)} onSave={saveBooking} jobChannels={allJobs.filter(j => j.status !== 'done')} allChannels={allChannelsIncludingDynamic} getCategory={getCategory} editing={bookingModal.editing} defaultDate={bookingModal.defaultDate}/>)}{showTimesheetModal && (<TimesheetEntryModal onClose={() => setShowTimesheetModal(null)} onSave={(entry)=>{saveTimesheetEntry(entry); setShowTimesheetModal(null);}} crew={crew} projectId={showTimesheetModal.projectId} projectName={showTimesheetModal.projectName} editing={showTimesheetModal.editing} timesheets={timesheets || []} onAddCrew={addCrew}/>)}</div>);
+{isMobile && <div style={{...s.backdrop, ...(drawerOpen ? s.backdropOpen : {})}} onClick={() => setDrawerOpen(false)}/>}
+<div style={sidebarStyle}>
+  <div style={s.serverHeader}>
+    <div style={s.serverIcon}>RAL</div>
+    <div style={s.serverMeta}>
+      <div style={s.serverSmallCap}>Server</div>
+      <div style={s.serverName}>RAL</div>
+    </div>
+    <button style={s.themeToggle} onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '🌙' : '☀️'}</button>
+    {isMobile && <button style={{...s.themeToggle, marginLeft:4}} onClick={() => setDrawerOpen(false)} aria-label="Close menu">✕</button>}
+  </div>
+  <div style={s.actionBar}>
+    <button style={s.actionBtn} onClick={() => { setEditingJob(null); setJobTargetCategory('cat-run'); setShowJobWizard(true); if(isMobile) setDrawerOpen(false); }}>+ NEW PROJECT</button>
+    <button style={s.actionBtn} onClick={() => { setEditingCategory(null); setShowCategoryModal(true); if(isMobile) setDrawerOpen(false); }}>+ CATEGORY</button>
+  </div>
+  <div style={s.projList}>
+    {sortedCategories.map(cat => (
+      <CategoryBlock key={cat.id} category={cat} channels={channelsByCat(cat.id)} activeId={activeId} onSelect={selectChannel} getColor={getColor}
+        onAddChannel={(c) => { if(c.system === 'running') { setEditingJob(null); setJobTargetCategory(c.id); setShowJobWizard(true); if(isMobile) setDrawerOpen(false); } else { setShowTypePicker({category: c}); if(isMobile) setDrawerOpen(false); } }}
+        onEditCategory={(c) => { setEditingCategory(c); setShowCategoryModal(true); if(isMobile) setDrawerOpen(false); }}
+        onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDragging={draggedCategory?.id === cat.id}/>
+    ))}
+  </div>
+  <div style={{padding:'8px 12px 12px',borderTop:'1px solid var(--border)'}}>
+    <InstallButton/>
+  </div>
+</div>
+<div style={s.main}>
+  {!channel ? (
+    <div style={{...s.empty,height:'100%'}}>
+      {isMobile && <button style={{...s.burgerBtn, position:'absolute', top:12, left:12}} onClick={()=>setDrawerOpen(true)}>☰</button>}
+      <span style={s.emptyIcon}>🏗️</span>
+      <span style={s.emptyText}>Select or create a channel</span>
+      {isMobile
+        ? <button style={s.primaryBtn} onClick={() => setDrawerOpen(true)}>☰ Open menu</button>
+        : <button style={s.primaryBtn} onClick={() => { setEditingJob(null); setJobTargetCategory('cat-run'); setShowJobWizard(true); }}>+ New project</button>
+      }
+    </div>
+  ) : (<>
+    <div style={headerStyle}>
+      {isMobile && <button style={s.burgerBtn} onClick={()=>setDrawerOpen(true)} aria-label="Open menu">☰</button>}
+      <div style={s.headerTitleWrap}>
+        <div style={headerKickerStyle}>{currentCategory ? `${currentCategory.emoji} ${currentCategory.name}` : ''}{channel.status === 'done' && ' · done'}</div>
+        <div style={headerTitleStyle}>{channelColor && <span style={{...s.headerColorDot, background:channelColor.bar}}/>}{channel.type === 'ts-project' ? '🏢 ' + channel.name : channel.name}</div>
+        <div style={headerMetaStyle}>{channel.type === 'job' ? `${channel.address || 'No address'} · Started ${formatDate(channel.startDate)}` : channel.name === '📢announcements' ? 'Company-wide announcements — join WhatsApp group' : channel.type === 'materials' ? 'Materials list' : channel.type === 'calendar' ? 'Work calendar — bookings & crew scheduling' : channel.type === 'incidents-bin' ? 'All ' + channel.name + ' reports across projects' : channel.type === 'ts-overview' ? 'View hours per worker and project — filter by date range for invoicing' : channel.type === 'ts-project' ? "All workers' hours on this project" : channel.type === 'roster' ? 'Manage crew members — names appear in timesheet dropdowns' : 'Plain channel'}</div>
+      </div>
+      <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+        {channel.type === 'job' && channel.whatsapp && (<a href={channel.whatsapp} target="_blank" rel="noreferrer" style={{...s.badge,...s.badgeSuccess,textDecoration:'none'}}>💬 Chat</a>)}
+        {channel.type !== 'job' && channel.whatsappLink && (<a href={channel.whatsappLink} target="_blank" rel="noreferrer" style={{...s.badge,...s.badgeSuccess,textDecoration:'none'}}>💬 WhatsApp</a>)}
+        {channel.type === 'plain' && !channel.whatsappLink && (<button style={{...s.badge,...s.badgeGhost}} onClick={() => { const link = prompt('Paste WhatsApp group invite link:'); if(link && link.trim()) updateData(prev => ({...prev, channels: prev.channels.map(c => c.id === channel.id ? {...c, whatsappLink: link.trim()} : c)})); }}>💬 Set WhatsApp</button>)}
+        {channel.type === 'job' && (<>
+          <button style={{...s.badge,...s.badgePrimary}} onClick={() => setShowShare(true)}>↗ Share</button>
+          <button style={{...s.badge,...s.badgeGhost}} onClick={() => toggleStatus(channel.id)}>{channel.status === 'done' ? '↻ Re-open' : '✓ Done'}</button>
+          <button style={{...s.badge,...s.badgeGhost}} onClick={() => { setEditingJob(channel); setShowJobWizard(true); }}>✏ Edit</button>
+        </>)}
+        {channel.type !== 'incidents-bin' && channel.type !== 'ts-overview' && channel.type !== 'ts-project' && channel.type !== 'roster' && (<button style={{...s.badge,...s.badgeGhost}} onClick={() => deleteChannel(channel.id)}>🗑</button>)}
+      </div>
+    </div>
+    {channel.type === 'job' && (
+      <div style={threadBarStyle}>
+        <button style={s.threadAdd} onClick={() => setShowAddThread(true)} title="Add custom thread">+</button>
+        {(channel.customThreads || []).length > 0 && <div style={s.threadDivider}/>}
+        {allThreads.map(t => (
+          <button key={t.id} style={{...s.threadBtn, ...(activeThreadId===t.id ? s.threadBtnActive : {})}} onClick={() => setActiveThreadId(t.id)}>
+            <span>{t.icon}</span><span>{t.label}</span>
+            {!t.fixed && activeThreadId===t.id && (<span style={s.threadRemove} onClick={(e) => { e.stopPropagation(); removeCustomThread(t.id); }}>×</span>)}
+          </button>
+        ))}
+      </div>
+    )}
+    <div style={contentStyle}>
+      <ThreadView channel={channel} thread={currentThread} notes={notes} setNotes={setNotes} allChannels={allChannelsIncludingDynamic} incidents={incidents} onIncidentSubmit={() => setShowIncidentForm(true)} onIncidentDelete={deleteIncident} onMentionClick={handleMentionClick} onJumpToProject={selectChannel} onUpdateMaterials={updateMaterials} onAddMaterial={() => setShowAddMaterial(true)} calendarEntries={calendarEntries || []} onNewBooking={(date) => setBookingModal({defaultDate: date})} onEditBooking={(entry) => setBookingModal({editing: entry})} onDeleteBooking={deleteBooking} getCategory={getCategory} allJobs={allJobs} timesheets={timesheets || []} onAddTimesheet={() => setShowTimesheetModal({projectId:channel.id, projectName:channel.name})} onConfirmTimesheet={confirmTimesheetEntry} onDeleteTimesheet={deleteTimesheetEntry} onBulkConfirmTimesheet={bulkConfirmTimesheet} crew={crew} onAddCrew={addCrew} onRemoveCrew={removeCrew} isMobile={isMobile}/>
+    </div>
+  </>)}
+</div>
+{showJobWizard && (<JobWizard onClose={() => setShowJobWizard(false)} onSave={saveJob} editing={editingJob}/>)}
+{showShare && channel && channel.type === 'job' && (<ShareModal channel={channel} onClose={() => setShowShare(false)}/>)}
+{showCategoryModal && (<CategoryModal onClose={() => { setShowCategoryModal(false); setEditingCategory(null); }} onSave={saveCategory} editing={editingCategory}/>)}
+{showTypePicker && (<ChannelTypePicker onClose={() => setShowTypePicker(null)} categoryName={showTypePicker.category.name} onPickJob={() => { setJobTargetCategory(showTypePicker.category.id); setEditingJob(null); setShowTypePicker(null); setShowJobWizard(true); }} onPickPlain={(name) => createPlainChannel(showTypePicker.category.id, name)} onPickMaterials={(name) => createMaterialsChannel(showTypePicker.category.id, name)} onPickCalendar={(name) => createCalendarChannel(showTypePicker.category.id, name)}/>)}
+{showAddThread && <AddThreadModal onClose={() => setShowAddThread(false)} onSave={addCustomThread}/>}
+{showIncidentForm && channel && channel.type === 'job' && (<IncidentFormModal onClose={() => setShowIncidentForm(false)} onSave={submitIncident} project={channel}/>)}
+{showAddMaterial && <AddMaterialModal onClose={() => setShowAddMaterial(false)} onSave={addMaterial}/>}
+{bookingModal && (<CalendarBookingModal onClose={() => setBookingModal(null)} onSave={saveBooking} jobChannels={allJobs.filter(j => j.status !== 'done')} allChannels={allChannelsIncludingDynamic} getCategory={getCategory} editing={bookingModal.editing} defaultDate={bookingModal.defaultDate}/>)}
+{showTimesheetModal && (<TimesheetEntryModal onClose={() => setShowTimesheetModal(null)} onSave={(entry)=>{saveTimesheetEntry(entry); setShowTimesheetModal(null);}} crew={crew} projectId={showTimesheetModal.projectId} projectName={showTimesheetModal.projectName} editing={showTimesheetModal.editing} timesheets={timesheets || []} onAddCrew={addCrew}/>)}
+</div>);
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
