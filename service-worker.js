@@ -1,5 +1,5 @@
 // RAL Project Manager — Service Worker
-const CACHE_VERSION = 'ralpm-v6.0';
+const CACHE_VERSION = 'ralpm-v6.1';
 const STATIC_CACHE = CACHE_VERSION + '-static';
 const RUNTIME_CACHE = CACHE_VERSION + '-runtime';
 
