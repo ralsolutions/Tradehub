@@ -54,11 +54,39 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px;}
-input[type="date"]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:0.6;filter:invert(0.4);transition:opacity 0.15s;}
-input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1;}
-:root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) opacity(0.7);}
-input[type="date"],input[type="time"]{color-scheme:light;cursor:pointer;}
-:root[data-theme="dark"] input[type="date"],:root[data-theme="dark"] input[type="time"]{color-scheme:dark;}
+/* Date and time pickers: high-contrast emoji icon visible in both light/dark */
+input[type="date"], input[type="time"] {
+  cursor:pointer;
+  color-scheme:light;
+}
+:root[data-theme="dark"] input[type="date"],
+:root[data-theme="dark"] input[type="time"] {
+  color-scheme:dark;
+}
+/* In light mode, the default dark icon shows fine */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor:pointer;
+  opacity:1;
+  font-size:1.1em;
+  padding:2px;
+}
+/* In dark mode, invert the default black icon to white */
+:root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+:root[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator {
+  filter:invert(1) brightness(2);
+}
+</style>
+<script>
+// Make any click on a date/time input open the native picker (not just the icon)
+document.addEventListener('click', function(e) {
+  var t = e.target;
+  if (t && t.tagName === 'INPUT' && (t.type === 'date' || t.type === 'time') && typeof t.showPicker === 'function') {
+    try { t.showPicker(); } catch (err) { /* showPicker may throw if not user-initiated */ }
+  }
+}, true);
+</script>
+<style>
 input,textarea,select,button{font-family:'Inter',sans-serif;}
 input:focus,textarea:focus,select:focus{border-color:var(--accent)!important;}
 .mention{color:var(--accent);background:var(--accent-bg);padding:1px 6px;border-radius:4px;font-weight:600;cursor:pointer;text-decoration:none;font-size:0.95em;}
@@ -632,11 +660,16 @@ const projectWorkers = useMemo(() => {
   crew.forEach(c => names.add(c.name));
   return [...names].sort();
 }, [timesheets, projectId, crew, companyUsers]);
-// Find this worker's most recent entry (any project) to autofill times
+// Find this worker's most recent entry (prefer same project, fall back to any) to autofill times
 const lastEntryFor = (name) => {
   if (!name) return null;
-  const list = (timesheets||[]).filter(t => t.workerName === name).sort((a,b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
-  return list[0] || null;
+  const all = (timesheets||[]).filter(t => t.workerName === name);
+  if (all.length === 0) return null;
+  // Prefer same project
+  const sameProject = all.filter(t => t.projectId === projectId).sort((a,b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
+  if (sameProject.length > 0) return sameProject[0];
+  // Fall back to most recent of any project
+  return all.sort((a,b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime))[0];
 };
 const initialWorker = editing?.workerName || (isCrew ? currentUser.name : '');
 const initialLast = !editing ? lastEntryFor(initialWorker) : null;
@@ -937,6 +970,59 @@ return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}><div 
 // ── RAMS IFRAME VIEW ────────────────────────────────────────────────────────
 // Embeds the RAMS form inside the project, pre-filled with project data via URL params.
 // ── TOOLBOX TALK (5 sections, mini-cards stored per project) ────────────────
+// ── REUSABLE SIGNER ROW (used in Toolbox + RAMS) ────────────────────────────
+function SignerRow({signer, index, onChange, onRemove, canRemove, companyUsers, alreadyPickedNames}) {
+const isOther = signer.isOther;
+// Names available for this row: company users not yet picked by other rows (but include current row's pick)
+const availableNames = companyUsers.filter(n => !alreadyPickedNames.includes(n) || n === signer.name);
+const set = (key, val) => onChange({...signer, [key]: val});
+const switchToOther = () => onChange({...signer, isOther: true, name: '', description: '', signed:false});
+const switchToPick = () => onChange({...signer, isOther: false, name: '', description: '', signed:false});
+return (
+<div style={{padding:10,background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',marginBottom:8}}>
+  <div style={{display:'grid',gridTemplateColumns:'1fr 100px 1fr auto',gap:8,alignItems:'end'}}>
+    <div>
+      <label style={{...s.label,marginBottom:4,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <span>Name</span>
+        {!isOther && companyUsers.length > 0 && <button type="button" onClick={switchToOther} style={{background:'none',border:'none',color:'var(--accent-text)',fontSize:9,cursor:'pointer',padding:0,fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.2}}>+ Outsider</button>}
+        {isOther && <button type="button" onClick={switchToPick} style={{background:'none',border:'none',color:'var(--text-dim)',fontSize:9,cursor:'pointer',padding:0,fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.2}}>↩ Pick from team</button>}
+      </label>
+      {isOther
+        ? <input style={{...s.input,marginBottom:0}} value={signer.name} onChange={e=>set('name',e.target.value)} placeholder="Outsider name"/>
+        : (companyUsers.length > 0
+            ? <select style={{...s.input,marginBottom:0}} value={signer.name} onChange={e=>set('name',e.target.value)}>
+                <option value="">— Pick —</option>
+                {availableNames.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            : <input style={{...s.input,marginBottom:0}} value={signer.name} onChange={e=>set('name',e.target.value)} placeholder="Name"/>
+          )
+      }
+    </div>
+    <div>
+      <label style={{...s.label,marginBottom:4}}>Initials</label>
+      <input style={{...s.input,marginBottom:0,fontFamily:"Georgia, serif",fontSize:18,fontWeight:700,letterSpacing:3,textAlign:'center',padding:'8px 6px',color:signer.signed?'var(--success)':'var(--text)',borderColor:signer.signed?'var(--success)':'var(--border)'}} maxLength={4} value={signer.initials} onChange={e=>set('initials',e.target.value.toUpperCase().slice(0,4))} placeholder="LG"/>
+    </div>
+    <div>
+      <label style={{...s.label,marginBottom:4}}>Signed</label>
+      <label onClick={()=>set('signed',!signer.signed)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:signer.signed?'var(--success-bg)':'var(--bg-input)',border:`1px solid ${signer.signed?'var(--success)':'var(--border)'}`,borderRadius:7,cursor:'pointer'}}>
+        <div style={{width:18,height:18,borderRadius:4,background:signer.signed?'var(--success)':'transparent',border:`2px solid ${signer.signed?'var(--success)':'var(--text-faint)'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+          {signer.signed && <span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
+        </div>
+        <span style={{fontSize:12,color:signer.signed?'var(--success)':'var(--text-muted)'}}>{signer.signed?'Confirmed':'I confirm'}</span>
+      </label>
+    </div>
+    {canRemove && <button type="button" onClick={onRemove} style={{background:'var(--danger-bg)',color:'var(--danger)',border:'1px solid var(--danger)',borderRadius:6,padding:'6px 10px',fontSize:12,cursor:'pointer'}}>×</button>}
+  </div>
+  {isOther && (
+    <div style={{marginTop:8}}>
+      <label style={{...s.label,marginBottom:4}}>Description (company / role)</label>
+      <input style={{...s.input,marginBottom:0}} value={signer.description || ''} onChange={e=>set('description',e.target.value)} placeholder="e.g. Engineer, RIVAS Ltd"/>
+    </div>
+  )}
+</div>
+);
+}
+
 function ToolboxView({project, toolboxes, onNew, onView, onDelete, currentUser}) {
 const projectToolboxes = useMemo(() => (toolboxes || []).filter(t => t.projectId === project.id).sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [toolboxes, project.id]);
 return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}>
@@ -996,7 +1082,8 @@ const save = () => {
   if (attendees.length === 0) return alert('Pick at least one attendee.');
   if (!todaysWork.trim()) return alert('Describe today\'s work.');
   if (!allSigned) return alert('All signers must add their initials and tick "Sign off".');
-  onSave({
+  // Detect changed fields if editing
+  const newToolbox = {
     id: editing?.id || ('tb-'+Date.now().toString(36)),
     projectId: project.id,
     projectName: project.name,
@@ -1007,9 +1094,26 @@ const save = () => {
     todaysWork: todaysWork.trim(),
     hazards: hazards.filter(h => h.hazard.trim() || h.control.trim()),
     signers,
-    author: currentUser?.name || '—',
+    author: editing?.author || currentUser?.name || '—',
     createdAt: editing?.createdAt || new Date().toISOString(),
-  });
+    editHistory: editing?.editHistory || [],
+  };
+  if (editing) {
+    const changes = [];
+    if (editing.date !== date) changes.push('date');
+    if (JSON.stringify(editing.attendees||[]) !== JSON.stringify(attendees)) changes.push('attendees');
+    if ((editing.todaysWork||'') !== todaysWork.trim()) changes.push("today's work");
+    if (JSON.stringify(editing.hazards||[]) !== JSON.stringify(newToolbox.hazards)) changes.push('hazards');
+    if (JSON.stringify(editing.signers||[]) !== JSON.stringify(signers)) changes.push('sign off');
+    if (changes.length > 0) {
+      newToolbox.editHistory = [...(editing.editHistory || []), {
+        editedAt: new Date().toISOString(),
+        editedBy: currentUser?.name || '—',
+        fields: changes,
+      }];
+    }
+  }
+  onSave(newToolbox);
   onClose();
 };
 
@@ -1079,32 +1183,13 @@ return (<div style={s.overlay} onClick={onClose}>
         Each attendee must initial and confirm they understood the briefing.
       </div>
       {signers.map((sg, i) => (
-        <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 100px 1fr auto',gap:8,marginBottom:8,padding:10,background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',alignItems:'end'}}>
-          <div>
-            <label style={{...s.label,marginBottom:4}}>Name</label>
-            {companyUsers.length > 0
-              ? <select style={{...s.input,marginBottom:0}} value={sg.name} onChange={e=>setSgn(i,'name',e.target.value)}>
-                  <option value="">— Pick —</option>
-                  {companyUsers.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              : <input style={{...s.input,marginBottom:0}} value={sg.name} onChange={e=>setSgn(i,'name',e.target.value)} placeholder="Name"/>
-            }
-          </div>
-          <div>
-            <label style={{...s.label,marginBottom:4}}>Initials</label>
-            <input style={{...s.input,marginBottom:0,fontFamily:"Georgia, serif",fontSize:18,fontWeight:700,letterSpacing:3,textAlign:'center',padding:'8px 6px',color:sg.signed?'var(--success)':'var(--text)',borderColor:sg.signed?'var(--success)':'var(--border)'}} maxLength={4} value={sg.initials} onChange={e=>setSgn(i,'initials',e.target.value.toUpperCase().slice(0,4))} placeholder="LG"/>
-          </div>
-          <div>
-            <label style={{...s.label,marginBottom:4}}>Signed</label>
-            <label onClick={()=>setSgn(i,'signed',!sg.signed)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:sg.signed?'var(--success-bg)':'var(--bg-input)',border:`1px solid ${sg.signed?'var(--success)':'var(--border)'}`,borderRadius:7,cursor:'pointer'}}>
-              <div style={{width:18,height:18,borderRadius:4,background:sg.signed?'var(--success)':'transparent',border:`2px solid ${sg.signed?'var(--success)':'var(--text-faint)'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                {sg.signed && <span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
-              </div>
-              <span style={{fontSize:12,color:sg.signed?'var(--success)':'var(--text-muted)'}}>{sg.signed?'Confirmed':'I confirm'}</span>
-            </label>
-          </div>
-          {signers.length > 1 && <button type="button" onClick={()=>removeSigner(i)} style={{background:'var(--danger-bg)',color:'var(--danger)',border:'1px solid var(--danger)',borderRadius:6,padding:'6px 10px',fontSize:12,cursor:'pointer'}}>×</button>}
-        </div>
+        <SignerRow key={i} signer={sg} index={i}
+          onChange={(updated)=>setSigners(p=>p.map((x,j)=>j===i?updated:x))}
+          onRemove={()=>removeSigner(i)}
+          canRemove={signers.length > 1}
+          companyUsers={companyUsers}
+          alreadyPickedNames={signers.filter((_,j)=>j!==i).map(x=>x.name).filter(Boolean)}
+        />
       ))}
       <button type="button" onClick={addSigner} style={{...s.copyBtn,marginTop:4}}>+ Add signer</button>
     </div>
@@ -1161,13 +1246,29 @@ return (<div style={s.overlay} onClick={onClose}>
           {toolbox.signers.map((sg, i) => (
             <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'var(--bg-raised)',borderRadius:7,marginBottom:6,border:'1px solid var(--border)'}}>
               <div style={{fontFamily:"Georgia, serif",fontSize:18,fontWeight:700,letterSpacing:3,color:'var(--success)',flexShrink:0,minWidth:50}}>{sg.initials}</div>
-              <div style={{flex:1,fontSize:13,color:'var(--text)'}}>{sg.name}</div>
+              <div style={{flex:1,fontSize:13,color:'var(--text)'}}>
+                {sg.name}
+                {sg.isOther && <span style={{marginLeft:6,fontSize:9,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--accent-text)',background:'var(--accent-bg)',padding:'2px 6px',borderRadius:3,border:'1px solid var(--accent)',textTransform:'uppercase'}}>Outsider</span>}
+                {sg.description && <div style={{fontSize:11,color:'var(--text-dim)',marginTop:2}}>{sg.description}</div>}
+              </div>
               {sg.signed && <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--success)',background:'var(--success-bg)',padding:'3px 8px',borderRadius:4,border:'1px solid var(--success)',textTransform:'uppercase'}}>✓ Signed</span>}
             </div>
           ))}
         </div>
       )}
-      <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',marginTop:14,textAlign:'right'}}>Recorded {formatTime(toolbox.createdAt)} · by {toolbox.author || '—'}</div>
+      <div style={{marginTop:14,padding:'10px 12px',background:'var(--bg-sunken)',borderRadius:7,border:'1px solid var(--border)'}}>
+        <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:6}}>History</div>
+        <div style={{fontSize:11,color:'var(--text-muted)',display:'flex',justifyContent:'space-between',gap:8,padding:'4px 0',borderBottom: (toolbox.editHistory||[]).length>0 ? '1px solid var(--border)' : 'none'}}>
+          <span>📝 Created by <b>{toolbox.author || '—'}</b></span>
+          <span style={{fontFamily:"'JetBrains Mono',monospace"}}>{formatTime(toolbox.createdAt)}</span>
+        </div>
+        {(toolbox.editHistory || []).map((h, i) => (
+          <div key={i} style={{fontSize:11,color:'var(--text-muted)',display:'flex',justifyContent:'space-between',gap:8,padding:'4px 0',borderBottom: i < (toolbox.editHistory||[]).length-1 ? '1px solid var(--border)' : 'none'}}>
+            <span>✎ Edited by <b>{h.editedBy}</b> · changed: <span style={{color:'var(--accent-text)'}}>{(h.fields||[]).join(', ')}</span></span>
+            <span style={{fontFamily:"'JetBrains Mono',monospace"}}>{formatTime(h.editedAt)}</span>
+          </div>
+        ))}
+      </div>
     </div>
     <div style={s.modalFooter}>
       {canEdit && <button style={s.cancelBtn} onClick={()=>onEdit(toolbox)}>✎ Edit</button>}
@@ -1252,13 +1353,15 @@ const [signers, setSigners] = useState(editing?.signers || [{name:currentUser?.n
 const [sending, setSending] = useState(false);
 const [sendTo, setSendTo] = useState('');
 
-// Auto-inherited from project + company (read-only on form)
-const projectName = project.name;
-const location = project.address || '';
-const teamLeader = project.teamLeader || '';
-const clientName = project.clientName || '';
-const clientMobile = project.clientMobile || '';
-const companyName = company.name;
+// Inherited from project + company, but EDITABLE per-RAMS
+// When editing an existing RAMS, use stored values; when new, use project values
+const [projectName, setProjectName] = useState(editing?.projectName ?? project.name);
+const [location, setLocation] = useState(editing?.location ?? (project.address || ''));
+const [teamLeader, setTeamLeader] = useState(editing?.teamLeader ?? (project.teamLeader || ''));
+const [clientName, setClientName] = useState(editing?.clientName ?? (project.clientName || ''));
+const [clientMobile, setClientMobile] = useState(editing?.clientMobile ?? (project.clientMobile || ''));
+const [companyName, setCompanyName] = useState(editing?.companyName ?? company.name);
+const [editingProjectFields, setEditingProjectFields] = useState(false);
 
 const addHazard = () => setHazards(p => [...p, {hazard:'',risk:'',control:''}]);
 const removeHazard = (i) => setHazards(p => p.filter((_,j) => j !== i));
@@ -1271,22 +1374,42 @@ const allSigned = signers.length > 0 && signers.every(sg => sg.signed && sg.init
 
 const companyUsers = (company?.users || []).map(u => u.name);
 
-const buildRams = (sendStatus = false) => ({
-  id: editing?.id || ('rams-'+Date.now().toString(36)),
-  ref: editing?.ref || ('RAMS-'+Date.now().toString().slice(-6)),
-  projectId: project.id,
-  projectName, location, teamLeader, clientName, clientMobile, companyName,
-  date, worksafeNumber: worksafeNumber.trim(),
-  description: description.trim(), equipment: equipment.trim(), method: method.trim(),
-  emergency: emergency.trim(), ppe: ppe.trim(),
-  hazards: hazards.filter(h => h.hazard.trim() || h.risk.trim() || h.control.trim()),
-  signers,
-  author: currentUser?.name || '—',
-  emailSent: sendStatus || editing?.emailSent || false,
-  emailSentAt: sendStatus ? new Date().toISOString() : editing?.emailSentAt,
-  emailSentTo: sendStatus ? (sendTo || getManagerEmail()) : editing?.emailSentTo,
-  createdAt: editing?.createdAt || new Date().toISOString(),
-});
+const buildRams = (sendStatus = false) => {
+  const base = {
+    id: editing?.id || ('rams-'+Date.now().toString(36)),
+    ref: editing?.ref || ('RAMS-'+Date.now().toString().slice(-6)),
+    projectId: project.id,
+    projectName, location, teamLeader, clientName, clientMobile, companyName,
+    date, worksafeNumber: worksafeNumber.trim(),
+    description: description.trim(), equipment: equipment.trim(), method: method.trim(),
+    emergency: emergency.trim(), ppe: ppe.trim(),
+    hazards: hazards.filter(h => h.hazard.trim() || h.risk.trim() || h.control.trim()),
+    signers,
+    author: editing?.author || currentUser?.name || '—',
+    emailSent: sendStatus || editing?.emailSent || false,
+    emailSentAt: sendStatus ? new Date().toISOString() : editing?.emailSentAt,
+    emailSentTo: sendStatus ? (sendTo || getManagerEmail()) : editing?.emailSentTo,
+    createdAt: editing?.createdAt || new Date().toISOString(),
+    editHistory: editing?.editHistory || [],
+  };
+  if (editing) {
+    const changes = [];
+    const fmap = {projectName, location, teamLeader, clientName, clientMobile, companyName,
+      date, worksafeNumber: worksafeNumber.trim(), description: description.trim(),
+      equipment: equipment.trim(), method: method.trim(), emergency: emergency.trim(), ppe: ppe.trim()};
+    Object.keys(fmap).forEach(k => { if ((editing[k] || '') !== (fmap[k] || '')) changes.push(k); });
+    if (JSON.stringify(editing.hazards||[]) !== JSON.stringify(base.hazards)) changes.push('risk assessment');
+    if (JSON.stringify(editing.signers||[]) !== JSON.stringify(signers)) changes.push('sign off');
+    if (changes.length > 0) {
+      base.editHistory = [...(editing.editHistory || []), {
+        editedAt: new Date().toISOString(),
+        editedBy: currentUser?.name || '—',
+        fields: changes,
+      }];
+    }
+  }
+  return base;
+};
 
 const getManagerEmail = () => {
   const mgr = (company?.users || []).find(u => u.role === 'manager');
@@ -1358,14 +1481,28 @@ return (<div style={s.overlay} onClick={onClose}>
     </div>
     <div style={s.modalBody}>
       {sectionTitle(1, 'Project details')}
-      <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,marginBottom:6,border:'1px solid var(--border)',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-        {labelVal('Project', projectName)}
-        {labelVal('Location', location)}
-        {labelVal('Team leader', teamLeader)}
-        {labelVal('Company', companyName)}
-        {labelVal('Client', clientName)}
-        {labelVal('Mobile', clientMobile)}
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:8}}>
+        <button type="button" onClick={()=>setEditingProjectFields(p=>!p)} style={{...s.copyBtn,fontSize:10}}>{editingProjectFields ? '✓ Done editing' : '✎ Override fields for this RAMS'}</button>
       </div>
+      {editingProjectFields ? (
+        <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,marginBottom:6,border:'1px solid var(--accent)',display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          <div><label style={s.label}>Project</label><input style={{...s.input,marginBottom:0}} value={projectName} onChange={e=>setProjectName(e.target.value)}/></div>
+          <div><label style={s.label}>Location</label><input style={{...s.input,marginBottom:0}} value={location} onChange={e=>setLocation(e.target.value)}/></div>
+          <div><label style={s.label}>Team leader</label><input style={{...s.input,marginBottom:0}} value={teamLeader} onChange={e=>setTeamLeader(e.target.value)}/></div>
+          <div><label style={s.label}>Company</label><input style={{...s.input,marginBottom:0}} value={companyName} onChange={e=>setCompanyName(e.target.value)}/></div>
+          <div><label style={s.label}>Client</label><input style={{...s.input,marginBottom:0}} value={clientName} onChange={e=>setClientName(e.target.value)}/></div>
+          <div><label style={s.label}>Mobile</label><input style={{...s.input,marginBottom:0}} value={clientMobile} onChange={e=>setClientMobile(e.target.value)}/></div>
+        </div>
+      ) : (
+        <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,marginBottom:6,border:'1px solid var(--border)',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          {labelVal('Project', projectName)}
+          {labelVal('Location', location)}
+          {labelVal('Team leader', teamLeader)}
+          {labelVal('Company', companyName)}
+          {labelVal('Client', clientName)}
+          {labelVal('Mobile', clientMobile)}
+        </div>
+      )}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:10}}>
         <div>
           <label style={s.label}>Date</label>
@@ -1405,32 +1542,13 @@ return (<div style={s.overlay} onClick={onClose}>
 
       {sectionTitle(8, 'Sign off')}
       {signers.map((sg, i) => (
-        <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 100px 1fr auto',gap:8,marginBottom:8,padding:10,background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',alignItems:'end'}}>
-          <div>
-            <label style={{...s.label,marginBottom:4}}>Name</label>
-            {companyUsers.length > 0
-              ? <select style={{...s.input,marginBottom:0}} value={sg.name} onChange={e=>setSgn(i,'name',e.target.value)}>
-                  <option value="">— Pick —</option>
-                  {companyUsers.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              : <input style={{...s.input,marginBottom:0}} value={sg.name} onChange={e=>setSgn(i,'name',e.target.value)} placeholder="Name"/>
-            }
-          </div>
-          <div>
-            <label style={{...s.label,marginBottom:4}}>Initials</label>
-            <input style={{...s.input,marginBottom:0,fontFamily:"Georgia, serif",fontSize:18,fontWeight:700,letterSpacing:3,textAlign:'center',padding:'8px 6px',color:sg.signed?'var(--success)':'var(--text)',borderColor:sg.signed?'var(--success)':'var(--border)'}} maxLength={4} value={sg.initials} onChange={e=>setSgn(i,'initials',e.target.value.toUpperCase().slice(0,4))} placeholder="LG"/>
-          </div>
-          <div>
-            <label style={{...s.label,marginBottom:4}}>Signed</label>
-            <label onClick={()=>setSgn(i,'signed',!sg.signed)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:sg.signed?'var(--success-bg)':'var(--bg-input)',border:`1px solid ${sg.signed?'var(--success)':'var(--border)'}`,borderRadius:7,cursor:'pointer'}}>
-              <div style={{width:18,height:18,borderRadius:4,background:sg.signed?'var(--success)':'transparent',border:`2px solid ${sg.signed?'var(--success)':'var(--text-faint)'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                {sg.signed && <span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
-              </div>
-              <span style={{fontSize:12,color:sg.signed?'var(--success)':'var(--text-muted)'}}>{sg.signed?'Confirmed':'I confirm'}</span>
-            </label>
-          </div>
-          {signers.length > 1 && <button type="button" onClick={()=>removeSigner(i)} style={{background:'var(--danger-bg)',color:'var(--danger)',border:'1px solid var(--danger)',borderRadius:6,padding:'6px 10px',fontSize:12,cursor:'pointer'}}>×</button>}
-        </div>
+        <SignerRow key={i} signer={sg} index={i}
+          onChange={(updated)=>setSigners(p=>p.map((x,j)=>j===i?updated:x))}
+          onRemove={()=>removeSigner(i)}
+          canRemove={signers.length > 1}
+          companyUsers={companyUsers}
+          alreadyPickedNames={signers.filter((_,j)=>j!==i).map(x=>x.name).filter(Boolean)}
+        />
       ))}
       <button type="button" onClick={addSigner} style={s.copyBtn}>+ Add signer</button>
 
@@ -1507,11 +1625,27 @@ return (<div style={s.overlay} onClick={onClose}>
       {(rams.signers || []).map((sg, i) => (
         <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'var(--bg-raised)',borderRadius:7,marginBottom:6,border:'1px solid var(--border)'}}>
           <div style={{fontFamily:"Georgia, serif",fontSize:18,fontWeight:700,letterSpacing:3,color:'var(--success)',flexShrink:0,minWidth:50}}>{sg.initials}</div>
-          <div style={{flex:1,fontSize:13,color:'var(--text)'}}>{sg.name}</div>
+          <div style={{flex:1,fontSize:13,color:'var(--text)'}}>
+            {sg.name}
+            {sg.isOther && <span style={{marginLeft:6,fontSize:9,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--accent-text)',background:'var(--accent-bg)',padding:'2px 6px',borderRadius:3,border:'1px solid var(--accent)',textTransform:'uppercase'}}>Outsider</span>}
+            {sg.description && <div style={{fontSize:11,color:'var(--text-dim)',marginTop:2}}>{sg.description}</div>}
+          </div>
           {sg.signed && <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--success)',background:'var(--success-bg)',padding:'3px 8px',borderRadius:4,border:'1px solid var(--success)',textTransform:'uppercase'}}>✓ Signed</span>}
         </div>
       ))}
-      <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',marginTop:14,textAlign:'right'}}>Recorded {formatTime(rams.createdAt)} · by {rams.author || '—'}</div>
+      <div style={{marginTop:14,padding:'10px 12px',background:'var(--bg-sunken)',borderRadius:7,border:'1px solid var(--border)'}}>
+        <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:6}}>History</div>
+        <div style={{fontSize:11,color:'var(--text-muted)',display:'flex',justifyContent:'space-between',gap:8,padding:'4px 0',borderBottom: (rams.editHistory||[]).length>0 ? '1px solid var(--border)' : 'none'}}>
+          <span>📝 Created by <b>{rams.author || '—'}</b></span>
+          <span style={{fontFamily:"'JetBrains Mono',monospace"}}>{formatTime(rams.createdAt)}</span>
+        </div>
+        {(rams.editHistory || []).map((h, i) => (
+          <div key={i} style={{fontSize:11,color:'var(--text-muted)',display:'flex',justifyContent:'space-between',gap:8,padding:'4px 0',borderBottom: i < (rams.editHistory||[]).length-1 ? '1px solid var(--border)' : 'none'}}>
+            <span>✎ Edited by <b>{h.editedBy}</b> · changed: <span style={{color:'var(--accent-text)'}}>{(h.fields||[]).join(', ')}</span></span>
+            <span style={{fontFamily:"'JetBrains Mono',monospace"}}>{formatTime(h.editedAt)}</span>
+          </div>
+        ))}
+      </div>
     </div>
     <div style={s.modalFooter}>
       {canEdit && <button style={s.cancelBtn} onClick={()=>onEdit(rams)}>✎ Edit</button>}
@@ -1695,9 +1829,76 @@ if(thread.id === 'rams') return <RamsView project={channel} ramsEntries={ramsEnt
 return <NotesFeed channelId={channel.id} threadId={thread.id} notes={notes} setNotes={setNotes} placeholder={`Add a ${thread.label} note... (type # to mention)`} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>;
 }
 
-function CategoryBlock({category, channels, activeId, onSelect, onAddChannel, onEditCategory, getColor, onDragStart, onDragOver, onDrop, isDragging, canAddChannel, canEditCategory}) {
-const [open, setOpen] = useState(!category.collapsed); const dragHandleRef = useRef(null);
-return (<div style={{...s.catWrap, ...(isDragging ? s.catWrapDragging : {})}} draggable={canEditCategory} onDragStart={canEditCategory ? (e) => onDragStart(e, category) : undefined} onDragOver={onDragOver} onDrop={canEditCategory ? (e) => onDrop(e, category) : undefined} data-category-id={category.id}><div style={s.catHeader}><span onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0,cursor:'pointer'}}><span style={{...s.catCaret, transform: open?'rotate(90deg)':'rotate(0deg)'}}>▶</span><span style={s.catEmoji}>{category.emoji}</span><span style={s.catLabel}>{category.name}</span></span><span style={s.catCount}>{channels.length}</span>{canAddChannel && category.system !== 'incidents' && category.system !== 'timesheets' && category.system !== 'settings' && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onAddChannel(category);}}>+</button>)}{canEditCategory && !category.system && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onEditCategory(category);}}>✎</button>)}{canEditCategory && <span style={s.catDragHandle} ref={dragHandleRef}>⋮⋮</span>}</div>{open && channels.map(ch => { const isActive = activeId === ch.id; const isDone = ch.status === 'done'; let hash = '#'; if(ch.type === 'job') hash = '◆'; else if(ch.type === 'materials') hash = ''; else if(ch.type === 'calendar') hash = ''; else if(ch.type === 'incidents-bin') { const t = INCIDENT_TYPES.find(t => t.id === ch.incidentType); hash = t?.emoji || '⚠️'; } else if(ch.type === 'ts-overview') hash = ''; else if(ch.type === 'ts-project') hash = ''; else if(ch.type === 'roster' || ch.type === 'users' || ch.type === 'company-info') hash = ''; else if(ch.type === 'plain') hash = ''; const col = ch.type === 'job' && ch.colorId && ch.status !== 'done' ? getColor(ch.colorId) : null; const tsCol = ch.type === 'ts-project' && ch.colorId ? getColor(ch.colorId) : null; return (<div key={ch.id} style={{...s.chanItem, ...(isActive?s.chanItemActive:{}), ...(isDone?s.chanItemDone:{})}} onClick={()=>onSelect(ch.id)}><span style={s.chanHash}>{hash}</span><span style={{...s.chanName, ...(isActive?s.chanNameActive:{})}}>{ch.name}</span>{col && <span style={{...s.chanDot, background:col.bar}}/>}{tsCol && <span style={{...s.chanDot, background:tsCol.bar}}/>}</div>); })}{open && channels.length === 0 && <div style={s.emptyCat}>no channels yet</div>}</div>);
+function CategoryBlock({category, channels, activeId, onSelect, onAddChannel, onEditCategory, getColor, onDragStart, onDragOver, onDrop, isDragging, canAddChannel, canEditCategory, canMoveChannel, onChannelDragStart, onChannelDrop}) {
+const [open, setOpen] = useState(!category.collapsed);
+const dragHandleRef = useRef(null);
+const [isDropTarget, setIsDropTarget] = useState(false);
+const handleAnyDragOver = (e) => {
+  // Allow drag-over for both category and channel drops
+  e.preventDefault();
+  if (e.dataTransfer.types && e.dataTransfer.types.indexOf && e.dataTransfer.types.indexOf('application/x-channel-id') !== -1) {
+    e.dataTransfer.dropEffect = 'move';
+    setIsDropTarget(true);
+  } else if (canEditCategory) {
+    e.dataTransfer.dropEffect = 'move';
+  }
+};
+const handleAnyDragLeave = () => setIsDropTarget(false);
+const handleAnyDrop = (e) => {
+  setIsDropTarget(false);
+  // Try channel drop first
+  const channelId = e.dataTransfer.getData('application/x-channel-id');
+  if (channelId && canMoveChannel) {
+    e.preventDefault();
+    e.stopPropagation();
+    onChannelDrop(channelId, category);
+    return;
+  }
+  // Fall back to category drop
+  if (canEditCategory) onDrop(e, category);
+};
+return (<div style={{...s.catWrap, ...(isDragging ? s.catWrapDragging : {}), ...(isDropTarget ? {outline:'2px dashed var(--accent)',outlineOffset:2,borderRadius:6} : {})}} draggable={canEditCategory} onDragStart={canEditCategory ? (e) => onDragStart(e, category) : undefined} onDragOver={handleAnyDragOver} onDragLeave={handleAnyDragLeave} onDrop={handleAnyDrop} data-category-id={category.id}>
+  <div style={s.catHeader}>
+    <span onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0,cursor:'pointer'}}>
+      <span style={{...s.catCaret, transform: open?'rotate(90deg)':'rotate(0deg)'}}>▶</span>
+      <span style={s.catEmoji}>{category.emoji}</span>
+      <span style={s.catLabel}>{category.name}</span>
+    </span>
+    <span style={s.catCount}>{channels.length}</span>
+    {canAddChannel && category.system !== 'incidents' && category.system !== 'timesheets' && category.system !== 'settings' && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onAddChannel(category);}}>+</button>)}
+    {canEditCategory && !category.system && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onEditCategory(category);}}>✎</button>)}
+    {canEditCategory && <span style={s.catDragHandle} ref={dragHandleRef}>⋮⋮</span>}
+  </div>
+  {open && channels.map(ch => {
+    const isActive = activeId === ch.id;
+    const isDone = ch.status === 'done';
+    let hash = '#';
+    if(ch.type === 'job') hash = '◆';
+    else if(ch.type === 'materials') hash = '';
+    else if(ch.type === 'calendar') hash = '';
+    else if(ch.type === 'incidents-bin') { const t = INCIDENT_TYPES.find(t => t.id === ch.incidentType); hash = t?.emoji || '⚠️'; }
+    else if(ch.type === 'ts-overview') hash = '';
+    else if(ch.type === 'ts-project') hash = '';
+    else if(ch.type === 'roster' || ch.type === 'users' || ch.type === 'company-info') hash = '';
+    else if(ch.type === 'plain') hash = '';
+    const col = ch.type === 'job' && ch.colorId && ch.status !== 'done' ? getColor(ch.colorId) : null;
+    const tsCol = ch.type === 'ts-project' && ch.colorId ? getColor(ch.colorId) : null;
+    const isDraggable = canMoveChannel && ch.type === 'job';
+    return (
+      <div key={ch.id}
+        draggable={isDraggable}
+        onDragStart={isDraggable ? (e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-channel-id', ch.id); onChannelDragStart && onChannelDragStart(ch); } : undefined}
+        style={{...s.chanItem, ...(isActive?s.chanItemActive:{}), ...(isDone?s.chanItemDone:{}), ...(isDraggable?{cursor:'grab'}:{})}}
+        onClick={()=>onSelect(ch.id)}>
+        <span style={s.chanHash}>{hash}</span>
+        <span style={{...s.chanName, ...(isActive?s.chanNameActive:{})}}>{ch.name}</span>
+        {col && <span style={{...s.chanDot, background:col.bar}}/>}
+        {tsCol && <span style={{...s.chanDot, background:tsCol.bar}}/>}
+      </div>
+    );
+  })}
+  {open && channels.length === 0 && <div style={s.emptyCat}>no channels yet</div>}
+</div>);
 }
 
 // ── PWA install button in the sidebar footer ────────────────────────────────
@@ -1778,6 +1979,25 @@ const createMaterialsChannel = (cid, name) => { const ch = {id:'ch-'+Date.now().
 const createCalendarChannel = (cid, name) => { const ch = {id:'ch-'+Date.now().toString(36), type:'calendar', name, categoryId:cid, createdAt:new Date().toISOString()}; updateData(prev => ({...prev, channels:[ch, ...prev.channels]})); setActiveId(ch.id); setShowTypePicker(null); };
 const deleteChannel = (id) => { const ch = d.channels.find(c => c.id === id); if(ch?.type === 'incidents-bin' || ch?.type === 'ts-overview') return alert('System channels cannot be deleted.'); if(!confirm('Delete this channel?')) return; updateData(prev => ({...prev, channels: prev.channels.filter(c => c.id !== id)})); if(activeId === id) setActiveId(null); };
 const toggleStatus = (id) => { updateData(prev => ({...prev, channels: prev.channels.map(c => { if(c.id !== id) return c; const newStatus = c.status === 'done' ? 'running' : 'done'; const runCat = prev.categories.find(cat => cat.system === 'running'); const doneCat = prev.categories.find(cat => cat.system === 'done'); let newCatId = c.categoryId; if(newStatus === 'done' && c.categoryId === runCat?.id) newCatId = doneCat?.id || c.categoryId; if(newStatus === 'running' && c.categoryId === doneCat?.id) newCatId = runCat?.id || c.categoryId; let colorId = c.colorId; if(newStatus === 'running') { const others = prev.channels.filter(x => x.type === 'job' && x.id !== c.id && x.status !== 'done'); const taken = new Set(others.map(x => x.colorId)); if(!colorId || taken.has(colorId)) colorId = pickProjectColor([...others]); } return {...c, status: newStatus, categoryId: newCatId, colorId}; })})); };
+// Move a project channel to a different category (drag-and-drop)
+const moveChannelToCategory = (channelId, targetCategory) => {
+  updateData(prev => {
+    const ch = prev.channels.find(c => c.id === channelId);
+    if (!ch || ch.type !== 'job') return prev;
+    if (ch.categoryId === targetCategory.id) return prev;
+    // Smart: if dropping in the system 'done' category, mark as done; if 'running', mark as running
+    let newStatus = ch.status;
+    let colorId = ch.colorId;
+    if (targetCategory.system === 'done') newStatus = 'done';
+    else if (targetCategory.system === 'running') {
+      newStatus = 'running';
+      const others = prev.channels.filter(x => x.type === 'job' && x.id !== ch.id && x.status !== 'done');
+      const taken = new Set(others.map(x => x.colorId));
+      if (!colorId || taken.has(colorId)) colorId = pickProjectColor([...others]);
+    }
+    return {...prev, channels: prev.channels.map(c => c.id === channelId ? {...c, categoryId: targetCategory.id, status: newStatus, colorId} : c)};
+  });
+};
 const saveCategory = (cat) => updateData(prev => { const idx = prev.categories.findIndex(c => c.id === cat.id); if(idx >= 0) { const categories = [...prev.categories]; categories[idx] = {...cat, order: cat.order ?? idx}; return {...prev, categories}; } const newCat = {...cat, order: prev.categories.length}; return {...prev, categories: [...prev.categories, newCat]}; });
 const addCustomThread = (thread) => { if(!channel || channel.type !== 'job') return; updateData(prev => ({...prev, channels: prev.channels.map(c => c.id === channel.id ? {...c, customThreads:[...(c.customThreads || []), thread]} : c)})); setActiveThreadId(thread.id); };
 const removeCustomThread = (threadId) => { if(!channel || channel.type !== 'job') return; if(!confirm('Remove this thread? Notes in it will be lost.')) return; updateData(prev => ({...prev, channels: prev.channels.map(c => c.id === channel.id ? {...c, customThreads:(c.customThreads || []).filter(t=>t.id!==threadId)} : c)})); if(activeThreadId === threadId) setActiveThreadId('info'); };
@@ -1849,7 +2069,10 @@ return (<div style={s.app}>
         onEditCategory={(c) => { setEditingCategory(c); setShowCategoryModal(true); if(isMobile) setDrawerOpen(false); }}
         onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDragging={draggedCategory?.id === cat.id}
         canAddChannel={currentUser.role === 'manager' || currentUser.role === 'team_leader'}
-        canEditCategory={currentUser.role === 'manager'}/>
+        canEditCategory={currentUser.role === 'manager'}
+        canMoveChannel={currentUser.role === 'manager' || currentUser.role === 'team_leader'}
+        onChannelDragStart={()=>{}}
+        onChannelDrop={moveChannelToCategory}/>
     ))}
   </div>
   <div style={{padding:'8px 12px 12px',borderTop:'1px solid var(--border)'}}>
