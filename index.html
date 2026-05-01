@@ -509,11 +509,79 @@ return (<div key={c.id} style={{...s.mentionItem, ...(isActive ? s.mentionItemAc
 );
 }
 
-function JobWizard({onClose, onSave, editing}) {
-const blank = {id:'',type:'job',status:'running',categoryId:'cat-run',customThreads:[], name:'',address:'',parking:'',assemblingPoint:'',toilet:'',keyLocation:'',firstAid:'',lunchroom:'', teamLeader:'',clientName:'',clientMobile:'',whatsapp:'',surveyLink:'',startDate:'',anchorInspectionDue:'',createdAt:''};
-const [step, setStep] = useState(0); const [data, setData] = useState(editing || blank); const set = k => e => setData(p => ({...p, [k]: e.target.value}));
+function JobWizard({onClose, onSave, editing, company}) {
+const blank = {id:'',type:'job',status:'running',categoryId:'cat-run',customThreads:[], name:'',address:'',parking:'',assemblingPoint:'',toilet:'',keyLocation:'',firstAid:'',lunchroom:'', teamLeader:'',clientName:'',clientMobile:'',whatsapp:'',surveyLink:'',startDate:'',anchorInspectionDue:'',anchorInspectionConfirmed:true,createdAt:''};
+const [step, setStep] = useState(0);
+const [data, setData] = useState(editing || blank);
+const [addressTouched, setAddressTouched] = useState(!!editing?.address);
+const [teamLeaderMode, setTeamLeaderMode] = useState(() => {
+  if (!editing?.teamLeader) return 'pick';
+  const users = (company?.users || []).map(u => u.name);
+  return users.includes(editing.teamLeader) ? 'pick' : 'custom';
+});
+
+const set = k => e => setData(p => ({...p, [k]: e.target.value}));
+
+// Auto-fill address from name unless name is pure digits or address was manually edited
+const setName = (e) => {
+  const newName = e.target.value;
+  setData(p => {
+    const isPureNumber = /^\d+$/.test(newName.trim());
+    if (!addressTouched && !isPureNumber) {
+      return {...p, name: newName, address: newName};
+    }
+    return {...p, name: newName};
+  });
+};
+
+const setAddress = (e) => {
+  setAddressTouched(true);
+  setData(p => ({...p, address: e.target.value}));
+};
+
+const teamUsers = (company?.users || []).map(u => u.name);
+
 const steps = [
-{title:'Project info', fields:(<><label style={s.label}>Project name *</label><input style={s.input} value={data.name} onChange={set('name')} placeholder="e.g. 80 Queen Street" autoFocus/><div style={s.row2}><div><label style={s.label}>Start date</label><input style={s.input} type="date" value={data.startDate} onChange={set('startDate')}/></div><div><label style={s.label}>Team leader</label><input style={s.input} value={data.teamLeader} onChange={set('teamLeader')} placeholder="Name"/></div></div><label style={s.label}>Address / location</label><input style={s.input} value={data.address} onChange={set('address')} placeholder="Full address"/><label style={s.label}>⚓ Anchor Inspection Due Date</label><input style={s.input} type="date" value={data.anchorInspectionDue} onChange={set('anchorInspectionDue')}/></>)},
+{title:'Project info', fields:(
+  <>
+    <label style={s.label}>Project name *</label>
+    <input style={s.input} value={data.name} onChange={setName} placeholder="e.g. 80 Queen Street, or just 1545" autoFocus/>
+    <div style={s.row2}>
+      <div>
+        <label style={s.label}>Start date</label>
+        <input style={s.input} type="date" value={data.startDate} onChange={set('startDate')}/>
+      </div>
+      <div>
+        <label style={s.label}>Team leader</label>
+        {teamLeaderMode === 'pick' ? (
+          <div style={{display:'flex',gap:6}}>
+            <select style={{...s.input,marginBottom:0,flex:1}} value={data.teamLeader} onChange={set('teamLeader')}>
+              <option value="">— Select —</option>
+              {teamUsers.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <button type="button" style={{...s.cancelBtn,padding:'10px 12px'}} onClick={()=>{setTeamLeaderMode('custom');setData(p=>({...p,teamLeader:''}));}}>✎</button>
+          </div>
+        ) : (
+          <div style={{display:'flex',gap:6}}>
+            <input style={{...s.input,marginBottom:0,flex:1}} value={data.teamLeader} onChange={set('teamLeader')} placeholder="Custom name"/>
+            <button type="button" style={{...s.cancelBtn,padding:'10px 12px'}} onClick={()=>{setTeamLeaderMode('pick');setData(p=>({...p,teamLeader:''}));}}>↩</button>
+          </div>
+        )}
+      </div>
+    </div>
+    <div style={{height:16}}/>
+    <label style={s.label}>Address / location</label>
+    <input style={s.input} value={data.address} onChange={setAddress} placeholder="Full address"/>
+    <label style={s.label}>⚓ Anchor Inspection Due Date</label>
+    <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:6}}>
+      <input style={{...s.input,marginBottom:0,flex:1, opacity: data.anchorInspectionConfirmed ? 1 : 0.4}} type="date" value={data.anchorInspectionDue} onChange={set('anchorInspectionDue')} disabled={!data.anchorInspectionConfirmed}/>
+    </div>
+    <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',marginBottom:16,padding:'8px 12px',background:'var(--bg-raised)',borderRadius:6,border:'1px solid var(--border)'}}>
+      <input type="checkbox" checked={!data.anchorInspectionConfirmed} onChange={(e) => setData(p => ({...p, anchorInspectionConfirmed: !e.target.checked, anchorInspectionDue: e.target.checked ? '' : p.anchorInspectionDue}))} style={{accentColor:'var(--accent)'}}/>
+      <span style={{fontSize:12,color:'var(--text-muted)'}}>No-one inspected the anchors yet (skip date)</span>
+    </label>
+  </>
+)},
 {title:'Site access', fields:(<><label style={s.label}>🚌 Parking</label><input style={s.input} value={data.parking} onChange={set('parking')}/><label style={s.label}>👥 Assembling point</label><input style={s.input} value={data.assemblingPoint} onChange={set('assemblingPoint')}/><label style={s.label}>🔓 Lock pad code / key's location</label><input style={s.input} value={data.keyLocation} onChange={set('keyLocation')}/></>)},
 {title:'Site amenities', fields:(<><label style={s.label}>🚻 Toilet</label><input style={s.input} value={data.toilet} onChange={set('toilet')}/><label style={s.label}>🩹 First aid kit</label><input style={s.input} value={data.firstAid} onChange={set('firstAid')}/><label style={s.label}>🍽️ Lunchroom</label><input style={s.input} value={data.lunchroom} onChange={set('lunchroom')}/></>)},
 {title:'Client', fields:(<><label style={s.label}>Client name</label><input style={s.input} value={data.clientName} onChange={set('clientName')}/><label style={s.label}>Client mobile</label><input style={s.input} value={data.clientMobile} onChange={set('clientMobile')}/></>)},
@@ -564,16 +632,82 @@ const projectWorkers = useMemo(() => {
   crew.forEach(c => names.add(c.name));
   return [...names].sort();
 }, [timesheets, projectId, crew, companyUsers]);
-// For crew: lock worker to themselves
+// Find this worker's most recent entry (any project) to autofill times
+const lastEntryFor = (name) => {
+  if (!name) return null;
+  const list = (timesheets||[]).filter(t => t.workerName === name).sort((a,b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
+  return list[0] || null;
+};
 const initialWorker = editing?.workerName || (isCrew ? currentUser.name : '');
+const initialLast = !editing ? lastEntryFor(initialWorker) : null;
 const [workerName, setWorkerName] = useState(initialWorker);
-const [date, setDate] = useState(editing?.date || todayISO()); const [startTime, setStartTime] = useState(editing?.startTime || '07:00'); const [endTime, setEndTime] = useState(editing?.endTime || '15:30'); const [description, setDescription] = useState(editing?.description || '');
-const hours = calcHours(startTime, endTime); const descOk = description.trim().length >= 20;
-const save = () => { if(!workerName) return alert('Select a worker.'); if(!descOk) return alert('Description must be at least 20 characters.'); onSave({ id: editing?.id || 'ts-'+Date.now().toString(36), projectId, projectName, workerName, date, startTime, endTime, hours, description: description.trim(), status: editing?.status || 'pending', createdAt: editing?.createdAt || new Date().toISOString() }); onClose(); };
-return (<div style={s.overlay} onClick={onClose}><div style={s.modal} onClick={e=>e.stopPropagation()}><div style={s.modalHeader}><div><div style={s.modalKicker}>{editing?'Edit':'New'} · Timesheet entry</div><div style={s.modalTitle}>{projectName}</div></div><button style={s.closeBtn} onClick={onClose}>×</button></div><div style={s.modalBody}><label style={s.label}>Worker *</label>{isCrew
-  ? <input style={{...s.input,opacity:0.7,cursor:'not-allowed'}} value={workerName} disabled/>
-  : <select style={s.input} value={workerName} onChange={e=>setWorkerName(e.target.value)}><option value="">— Select worker —</option>{projectWorkers.map(n => <option key={n} value={n}>{n}</option>)}</select>
-}<label style={s.label}>Date *</label><input style={s.input} type="date" value={date} onChange={e=>setDate(e.target.value)}/><div style={s.row2}><div><label style={s.label}>Start time *</label><input style={s.input} type="time" value={startTime} onChange={e=>setStartTime(e.target.value)}/></div><div><label style={s.label}>End time *</label><input style={s.input} type="time" value={endTime} onChange={e=>setEndTime(e.target.value)}/></div></div><div style={{fontSize:13,color:'var(--accent-text)',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",marginTop:-8,marginBottom:16}}>= {hours} hours</div><label style={s.label}>Description * <span style={{fontWeight:400,textTransform:'none'}}>({description.trim().length}/20 min chars)</span></label><textarea style={{...s.textarea, borderColor: description.trim().length > 0 && !descOk ? 'var(--warn)' : undefined}} value={description} onChange={e=>setDescription(e.target.value)} rows={4} placeholder="Describe work done (minimum 20 characters)..."/></div><div style={s.modalFooter}><button style={s.cancelBtn} onClick={onClose}>Cancel</button><button style={{...s.primaryBtn, opacity:(workerName&&descOk)?1:0.5}} onClick={save}>{editing?'Save':'Add entry'}</button></div></div></div>);
+const [date, setDate] = useState(editing?.date || todayISO());
+const [startTime, setStartTime] = useState(editing?.startTime || initialLast?.startTime || '07:00');
+const [endTime, setEndTime] = useState(editing?.endTime || initialLast?.endTime || '15:30');
+const [description, setDescription] = useState(editing?.description || '');
+
+// When worker changes (managers picking from dropdown), update times to that worker's last entry
+const onWorkerChange = (e) => {
+  const name = e.target.value;
+  setWorkerName(name);
+  if (!editing && name) {
+    const last = lastEntryFor(name);
+    if (last) {
+      setStartTime(last.startTime);
+      setEndTime(last.endTime);
+    }
+  }
+};
+
+const hours = calcHours(startTime, endTime);
+const MIN_DESC = 5;
+const descOk = description.trim().length >= MIN_DESC;
+const save = () => {
+  if(!workerName) return alert('Select a worker.');
+  if(!descOk) return alert(`Description must be at least ${MIN_DESC} characters.`);
+  onSave({ id: editing?.id || 'ts-'+Date.now().toString(36), projectId, projectName, workerName, date, startTime, endTime, hours, description: description.trim(), status: editing?.status || 'pending', createdAt: editing?.createdAt || new Date().toISOString() });
+  onClose();
+};
+return (<div style={s.overlay} onClick={onClose}>
+  <div style={s.modal} onClick={e=>e.stopPropagation()}>
+    <div style={s.modalHeader}>
+      <div>
+        <div style={s.modalKicker}>{editing?'Edit':'New'} · Timesheet entry</div>
+        <div style={s.modalTitle}>{projectName}</div>
+      </div>
+      <button style={s.closeBtn} onClick={onClose}>×</button>
+    </div>
+    <div style={s.modalBody}>
+      <label style={s.label}>Worker *</label>
+      {isCrew
+        ? <input style={{...s.input,opacity:0.7,cursor:'not-allowed'}} value={workerName} disabled/>
+        : <select style={s.input} value={workerName} onChange={onWorkerChange}>
+            <option value="">— Select worker —</option>
+            {projectWorkers.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+      }
+      <label style={s.label}>Date *</label>
+      <input style={s.input} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+      <div style={s.row2}>
+        <div>
+          <label style={s.label}>Start time *</label>
+          <input style={s.input} type="time" step="900" value={startTime} onChange={e=>setStartTime(e.target.value)}/>
+        </div>
+        <div>
+          <label style={s.label}>End time *</label>
+          <input style={s.input} type="time" step="900" value={endTime} onChange={e=>setEndTime(e.target.value)}/>
+        </div>
+      </div>
+      <div style={{fontSize:13,color:'var(--accent-text)',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",marginTop:-8,marginBottom:16}}>= {hours} hours</div>
+      <label style={s.label}>Description * <span style={{fontWeight:400,textTransform:'none'}}>({description.trim().length}/{MIN_DESC} min chars)</span></label>
+      <textarea style={{...s.textarea, borderColor: description.trim().length > 0 && !descOk ? 'var(--warn)' : undefined}} value={description} onChange={e=>setDescription(e.target.value)} rows={3} placeholder={`Brief description (min ${MIN_DESC} chars)...`}/>
+    </div>
+    <div style={s.modalFooter}>
+      <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
+      <button style={{...s.primaryBtn, opacity:(workerName&&descOk)?1:0.5}} onClick={save}>{editing?'Save':'Add entry'}</button>
+    </div>
+  </div>
+</div>);
 }
 
 function ProjectTimesheetView({channel, timesheets, onAdd, onConfirm, onDelete, onBulkConfirm, currentUser}) {
@@ -733,16 +867,26 @@ return (<div style={s.overlay} onClick={onClose}><div style={s.modal} onClick={e
 
 function InfoDisplay({channel}) {
 const anchorStatus = useMemo(() => {
-  if (!channel.anchorInspectionDue) return null;
+  if (channel.anchorInspectionConfirmed === false || !channel.anchorInspectionDue) return null;
   const now = new Date(); now.setHours(0,0,0,0);
   const due = new Date(channel.anchorInspectionDue+'T00:00:00');
-  const diff = Math.round((due-now)/(1000*60*60*24));
-  if (diff < 0) return {label:`overdue by ${-diff} day${-diff===1?'':'s'}`, color:'var(--danger)', bg:'var(--danger-bg)'};
-  if (diff === 0) return {label:'due today', color:'var(--warn)', bg:'var(--warn-bg)'};
-  if (diff <= 14) return {label:`in ${diff} day${diff===1?'':'s'}`, color:'var(--warn)', bg:'var(--warn-bg)'};
-  return {label:`in ${diff} days`, color:'var(--success)', bg:'var(--success-bg)'};
-}, [channel.anchorInspectionDue]);
-return (<div style={s.infoList}>{INFO_FIELDS.map(f => { const val = channel[f.key]; return (<div key={f.key} style={s.infoLine}><span style={s.infoEmoji}>{f.emoji}</span><div style={{flex:1}}><span style={s.infoLabelBold}>{f.label}:</span>{val ? <span style={s.infoValText}>{val}</span> : <span style={s.infoEmpty}>—</span>}{f.key === 'clientName' && channel.clientMobile && (<span style={s.infoValText}> · 📱 {channel.clientMobile}</span>)}</div></div>); })}{channel.startDate && (<div style={s.infoLine}><span style={s.infoEmoji}>📅</span><div style={{flex:1}}><span style={s.infoLabelBold}>Start date:</span><span style={s.infoValText}>{formatDate(channel.startDate)}</span></div></div>)}{channel.anchorInspectionDue && (<div style={s.infoLine}><span style={s.infoEmoji}>⚓</span><div style={{flex:1,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}><span style={s.infoLabelBold}>Anchor inspection due:</span><span style={s.infoValText}>{formatDate(channel.anchorInspectionDue)}</span>{anchorStatus && <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.2,padding:'3px 8px',borderRadius:5,color:anchorStatus.color,background:anchorStatus.bg,border:'1px solid '+anchorStatus.color}}>{anchorStatus.label}</span>}</div></div>)}{(channel.whatsapp || channel.surveyLink) && (<div style={s.infoLinksRow}>{channel.whatsapp && (<a href={channel.whatsapp} target="_blank" rel="noreferrer" style={{...s.infoLinkBtn, background:'var(--success-bg)', color:'var(--success)', borderColor:'var(--success)'}}>💬 Join WhatsApp</a>)}{channel.surveyLink && (<a href={channel.surveyLink} target="_blank" rel="noreferrer" style={{...s.infoLinkBtn, background:'var(--accent-bg)', color:'var(--accent-text)', borderColor:'var(--accent)'}}>🔍 Quick Survey</a>)}</div>)}</div>);
+  const diffDays = Math.round((due-now)/(1000*60*60*24));
+  // Calculate months left (approx)
+  const monthsLeft = Math.round(diffDays / 30.44);
+  // If anchor was certified, the "due date" usually is +12 months after certification
+  // We show: how long until expiry, and if it's been over 12 months past inspection -> recertify
+  if (diffDays < 0) {
+    const overdueM = Math.abs(monthsLeft);
+    return {label: overdueM >= 1 ? `overdue · ${overdueM} month${overdueM===1?'':'s'}` : `overdue by ${-diffDays} day${-diffDays===1?'':'s'}`, color:'var(--danger)', bg:'var(--danger-bg)'};
+  }
+  if (diffDays === 0) return {label:'due today', color:'var(--warn)', bg:'var(--warn-bg)'};
+  if (diffDays <= 14) return {label:`in ${diffDays} day${diffDays===1?'':'s'}`, color:'var(--warn)', bg:'var(--warn-bg)'};
+  if (monthsLeft <= 2) return {label:`in ${monthsLeft} month${monthsLeft===1?'':'s'}`, color:'var(--warn)', bg:'var(--warn-bg)'};
+  if (monthsLeft <= 6) return {label:`${monthsLeft} months left`, color:'var(--accent-text)', bg:'var(--accent-bg)'};
+  if (monthsLeft <= 12) return {label:`${monthsLeft} months left`, color:'var(--success)', bg:'var(--success-bg)'};
+  return {label:`needs to be recertified`, color:'var(--warn)', bg:'var(--warn-bg)'};
+}, [channel.anchorInspectionDue, channel.anchorInspectionConfirmed]);
+return (<div style={s.infoList}>{INFO_FIELDS.map(f => { const val = channel[f.key]; return (<div key={f.key} style={s.infoLine}><span style={s.infoEmoji}>{f.emoji}</span><div style={{flex:1}}><span style={s.infoLabelBold}>{f.label}:</span>{val ? <span style={s.infoValText}>{val}</span> : <span style={s.infoEmpty}>—</span>}{f.key === 'clientName' && channel.clientMobile && (<span style={s.infoValText}> · 📱 {channel.clientMobile}</span>)}</div></div>); })}{channel.startDate && (<div style={s.infoLine}><span style={s.infoEmoji}>📅</span><div style={{flex:1}}><span style={s.infoLabelBold}>Start date:</span><span style={s.infoValText}>{formatDate(channel.startDate)}</span></div></div>)}<div style={s.infoLine}><span style={s.infoEmoji}>⚓</span><div style={{flex:1,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}><span style={s.infoLabelBold}>Anchor inspection due:</span>{channel.anchorInspectionConfirmed === false ? <span style={{fontSize:11,color:'var(--text-dim)',fontStyle:'italic'}}>not confirmed yet</span> : channel.anchorInspectionDue ? (<><span style={s.infoValText}>{formatDate(channel.anchorInspectionDue)}</span>{anchorStatus && <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.2,padding:'3px 8px',borderRadius:5,color:anchorStatus.color,background:anchorStatus.bg,border:'1px solid '+anchorStatus.color}}>{anchorStatus.label}</span>}</>) : <span style={s.infoEmpty}>—</span>}</div></div>{(channel.whatsapp || channel.surveyLink) && (<div style={s.infoLinksRow}>{channel.whatsapp && (<a href={channel.whatsapp} target="_blank" rel="noreferrer" style={{...s.infoLinkBtn, background:'var(--success-bg)', color:'var(--success)', borderColor:'var(--success)'}}>💬 Join WhatsApp</a>)}{channel.surveyLink && (<a href={channel.surveyLink} target="_blank" rel="noreferrer" style={{...s.infoLinkBtn, background:'var(--accent-bg)', color:'var(--accent-text)', borderColor:'var(--accent)'}}>🔍 Quick Survey</a>)}</div>)}</div>);
 }
 
 function SharedView({channel, onExit}) {
@@ -792,25 +936,589 @@ return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}><div 
 
 // ── RAMS IFRAME VIEW ────────────────────────────────────────────────────────
 // Embeds the RAMS form inside the project, pre-filled with project data via URL params.
-function RamsEmbedView({project, isMobile}) {
-const url = buildRamsUrl(project);
-return (
-<div style={s.ramsWrap}>
-<div style={isMobile ? {...s.ramsBar, ...s.ramsBarMobile} : s.ramsBar}>
-<span style={s.ramsBarKicker}>RAMS</span>
-<span style={{fontWeight:600,color:'var(--text)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0,flex:isMobile?1:'0 1 auto'}}>{project.name}</span>
-{!isMobile && <><span style={{color:'var(--text-dim)'}}>·</span><span style={{fontSize:11,color:'var(--text-dim)'}}>Project data is pre-filled into the form below. Review and complete it.</span></>}
-<a href={url} target="_blank" rel="noreferrer" style={{...s.copyBtn, marginLeft:isMobile?0:'auto', textDecoration:'none',flexShrink:0}}>↗ {isMobile?'Full':'Open full screen'}</a>
-</div>
-<iframe
-  src={url}
-  style={s.ramsIframe}
-  title="RAMS form"
-  allow="clipboard-read; clipboard-write"
-  sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-downloads allow-modals"
-/>
-</div>
+// ── TOOLBOX TALK (5 sections, mini-cards stored per project) ────────────────
+function ToolboxView({project, toolboxes, onNew, onView, onDelete, currentUser}) {
+const projectToolboxes = useMemo(() => (toolboxes || []).filter(t => t.projectId === project.id).sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [toolboxes, project.id]);
+return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}>
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:8}}>
+    <div>
+      <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:2}}>{projectToolboxes.length} toolbox talk{projectToolboxes.length===1?'':'s'} on this project</div>
+      <div style={{fontSize:13,color:'var(--text-dim)'}}>Daily safety briefings — tap a card to view details.</div>
+    </div>
+    <button style={s.primaryBtn} onClick={onNew}>+ New toolbox</button>
+  </div>
+  <div style={{flex:1,overflowY:'auto'}}>
+    {projectToolboxes.length === 0
+      ? <div style={{...s.empty,height:'60%'}}><span style={s.emptyIcon}>🛡️</span><span style={s.emptyText}>No toolbox talks yet</span></div>
+      : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:10}}>
+          {projectToolboxes.map(tb => (
+            <div key={tb.id} onClick={()=>onView(tb)} style={{background:'var(--bg-panel)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 16px',boxShadow:'var(--shadow-sm)',cursor:'pointer',transition:'all 0.12s',position:'relative'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                <span style={{fontSize:18}}>🛡️</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{formatDate(tb.date)}</div>
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14}}>{(tb.attendees || []).length} attendee{(tb.attendees||[]).length===1?'':'s'}</div>
+                </div>
+                {(currentUser?.role === 'manager' || currentUser?.role === 'team_leader') && <button onClick={(e)=>{e.stopPropagation();if(confirm('Delete this toolbox talk?'))onDelete(tb.id);}} style={{background:'none',border:'none',color:'var(--text-faint)',cursor:'pointer',fontSize:14,padding:0}}>×</button>}
+              </div>
+              {tb.todaysWork && <div style={{fontSize:11,color:'var(--text-muted)',lineHeight:1.5,display:'-webkit-box',WebkitLineClamp:3,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{tb.todaysWork}</div>}
+              <div style={{marginTop:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-faint)'}}>by {tb.author || '—'}</span>
+                <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--accent-text)',background:'var(--accent-bg)',padding:'3px 8px',borderRadius:4,border:'1px solid var(--accent)',textTransform:'uppercase',letterSpacing:0.2}}>View →</span>
+              </div>
+            </div>
+          ))}
+        </div>
+    }
+  </div>
+</div>);
+}
+
+function ToolboxFormModal({onClose, onSave, project, company, currentUser, editing}) {
+const [date, setDate] = useState(editing?.date || todayISO());
+const companyUsers = (company?.users || []).map(u => u.name);
+const [attendees, setAttendees] = useState(editing?.attendees || (currentUser ? [currentUser.name] : []));
+const [todaysWork, setTodaysWork] = useState(editing?.todaysWork || '');
+const [hazards, setHazards] = useState(editing?.hazards || [{hazard:'',control:''}]);
+const [signers, setSigners] = useState(editing?.signers || [{name:currentUser?.name || '', signed: false, initials:''}]);
+
+const toggleAttendee = (name) => setAttendees(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+const addHazard = () => setHazards(p => [...p, {hazard:'',control:''}]);
+const removeHazard = (i) => setHazards(p => p.filter((_,j) => j !== i));
+const setHz = (i, key, val) => setHazards(p => p.map((h,j) => j===i ? {...h, [key]:val} : h));
+
+const addSigner = () => setSigners(p => [...p, {name:'', signed:false, initials:''}]);
+const removeSigner = (i) => setSigners(p => p.filter((_,j) => j !== i));
+const setSgn = (i, key, val) => setSigners(p => p.map((sg,j) => j===i ? {...sg, [key]:val} : sg));
+const allSigned = signers.length > 0 && signers.every(sg => sg.signed && sg.initials.trim() && sg.name.trim());
+
+const save = () => {
+  if (attendees.length === 0) return alert('Pick at least one attendee.');
+  if (!todaysWork.trim()) return alert('Describe today\'s work.');
+  if (!allSigned) return alert('All signers must add their initials and tick "Sign off".');
+  onSave({
+    id: editing?.id || ('tb-'+Date.now().toString(36)),
+    projectId: project.id,
+    projectName: project.name,
+    projectAddress: project.address,
+    teamLeader: project.teamLeader,
+    date,
+    attendees,
+    todaysWork: todaysWork.trim(),
+    hazards: hazards.filter(h => h.hazard.trim() || h.control.trim()),
+    signers,
+    author: currentUser?.name || '—',
+    createdAt: editing?.createdAt || new Date().toISOString(),
+  });
+  onClose();
+};
+
+const sectionTitle = (n, label) => (
+  <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 14px',background:'var(--bg-sunken)',borderRadius:7,marginBottom:12,border:'1px solid var(--border)'}}>
+    <span style={{background:'var(--accent)',color:'#fff',borderRadius:'50%',width:22,height:22,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,flexShrink:0}}>{n}</span>
+    <span style={{fontSize:13,fontWeight:700,color:'var(--text)'}}>{label}</span>
+  </div>
 );
+
+const chip = (label, selected, onClick) => (
+  <button type="button" onClick={onClick} style={{padding:'6px 12px',borderRadius:16,fontSize:12,fontWeight:600,cursor:'pointer',background: selected ? 'var(--accent)' : 'var(--bg-raised)',color: selected ? '#fff' : 'var(--text-muted)',border: '1px solid ' + (selected ? 'var(--accent)' : 'var(--border)'),transition:'all 0.12s'}}>{selected ? '✓ ' : ''}{label}</button>
+);
+
+return (<div style={s.overlay} onClick={onClose}>
+  <div style={s.modal} onClick={e=>e.stopPropagation()}>
+    <div style={s.modalHeader}>
+      <div>
+        <div style={s.modalKicker}>{editing ? 'Edit' : 'New'} · Toolbox talk</div>
+        <div style={s.modalTitle}>{project.name}</div>
+      </div>
+      <button style={s.closeBtn} onClick={onClose}>×</button>
+    </div>
+    <div style={s.modalBody}>
+      {sectionTitle(1, 'Job info')}
+      <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',marginBottom:18,fontSize:12,lineHeight:1.7}}>
+        <div><span style={{fontWeight:700,color:'var(--text)'}}>📋 Project:</span> <span style={{color:'var(--text-muted)'}}>{project.name}</span></div>
+        {project.address && <div><span style={{fontWeight:700,color:'var(--text)'}}>📍 Address:</span> <span style={{color:'var(--text-muted)'}}>{project.address}</span></div>}
+        {project.teamLeader && <div><span style={{fontWeight:700,color:'var(--text)'}}>👷 Team leader:</span> <span style={{color:'var(--text-muted)'}}>{project.teamLeader}</span></div>}
+        <div style={{marginTop:8}}>
+          <label style={s.label}>📅 Date</label>
+          <input style={{...s.input,marginBottom:0}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+        </div>
+      </div>
+
+      {sectionTitle(2, 'Attendees')}
+      {companyUsers.length === 0
+        ? <div style={{padding:'10px 12px',background:'var(--warn-bg)',border:'1px solid var(--warn)',borderRadius:6,fontSize:12,color:'var(--warn)',marginBottom:18}}>No team members yet. Add users in Settings → Users.</div>
+        : <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:18,padding:'10px',background:'var(--bg-sunken)',borderRadius:7,border:'1px solid var(--border)'}}>
+            {companyUsers.map(name => chip(name, attendees.includes(name), () => toggleAttendee(name)))}
+          </div>
+      }
+
+      {sectionTitle(3, "Today's work")}
+      <textarea style={{...s.textarea,marginBottom:18}} value={todaysWork} onChange={e=>setTodaysWork(e.target.value)} placeholder="What is the team doing today?" rows={4}/>
+
+      {sectionTitle(4, 'Hazards + controls')}
+      <div style={{marginBottom:18}}>
+        {hazards.map((h, i) => (
+          <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:8,marginBottom:8,padding:10,background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',alignItems:'flex-start'}}>
+            <div>
+              <label style={{...s.label,marginBottom:4}}>⚠️ Hazard</label>
+              <textarea style={{...s.textarea,marginBottom:0,minHeight:60}} value={h.hazard} onChange={e=>setHz(i, 'hazard', e.target.value)} placeholder="e.g. Working at height" rows={2}/>
+            </div>
+            <div>
+              <label style={{...s.label,marginBottom:4}}>🛡️ Control</label>
+              <textarea style={{...s.textarea,marginBottom:0,minHeight:60}} value={h.control} onChange={e=>setHz(i, 'control', e.target.value)} placeholder="e.g. Use ropes + harness, exclusion zone" rows={2}/>
+            </div>
+            {hazards.length > 1 && <button type="button" onClick={()=>removeHazard(i)} style={{background:'var(--danger-bg)',color:'var(--danger)',border:'1px solid var(--danger)',borderRadius:6,padding:'6px 10px',fontSize:12,cursor:'pointer',marginTop:22}}>×</button>}
+          </div>
+        ))}
+        <button type="button" onClick={addHazard} style={{...s.copyBtn,marginTop:4}}>+ Add hazard</button>
+      </div>
+
+      {sectionTitle(5, 'Sign off')}
+      <div style={{padding:'10px 14px',background:'var(--warn-bg)',border:'1px solid var(--warn)',borderRadius:7,fontSize:11,color:'var(--warn)',marginBottom:14,lineHeight:1.5}}>
+        Each attendee must initial and confirm they understood the briefing.
+      </div>
+      {signers.map((sg, i) => (
+        <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 100px 1fr auto',gap:8,marginBottom:8,padding:10,background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',alignItems:'end'}}>
+          <div>
+            <label style={{...s.label,marginBottom:4}}>Name</label>
+            {companyUsers.length > 0
+              ? <select style={{...s.input,marginBottom:0}} value={sg.name} onChange={e=>setSgn(i,'name',e.target.value)}>
+                  <option value="">— Pick —</option>
+                  {companyUsers.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              : <input style={{...s.input,marginBottom:0}} value={sg.name} onChange={e=>setSgn(i,'name',e.target.value)} placeholder="Name"/>
+            }
+          </div>
+          <div>
+            <label style={{...s.label,marginBottom:4}}>Initials</label>
+            <input style={{...s.input,marginBottom:0,fontFamily:"Georgia, serif",fontSize:18,fontWeight:700,letterSpacing:3,textAlign:'center',padding:'8px 6px',color:sg.signed?'var(--success)':'var(--text)',borderColor:sg.signed?'var(--success)':'var(--border)'}} maxLength={4} value={sg.initials} onChange={e=>setSgn(i,'initials',e.target.value.toUpperCase().slice(0,4))} placeholder="LG"/>
+          </div>
+          <div>
+            <label style={{...s.label,marginBottom:4}}>Signed</label>
+            <label onClick={()=>setSgn(i,'signed',!sg.signed)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:sg.signed?'var(--success-bg)':'var(--bg-input)',border:`1px solid ${sg.signed?'var(--success)':'var(--border)'}`,borderRadius:7,cursor:'pointer'}}>
+              <div style={{width:18,height:18,borderRadius:4,background:sg.signed?'var(--success)':'transparent',border:`2px solid ${sg.signed?'var(--success)':'var(--text-faint)'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                {sg.signed && <span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
+              </div>
+              <span style={{fontSize:12,color:sg.signed?'var(--success)':'var(--text-muted)'}}>{sg.signed?'Confirmed':'I confirm'}</span>
+            </label>
+          </div>
+          {signers.length > 1 && <button type="button" onClick={()=>removeSigner(i)} style={{background:'var(--danger-bg)',color:'var(--danger)',border:'1px solid var(--danger)',borderRadius:6,padding:'6px 10px',fontSize:12,cursor:'pointer'}}>×</button>}
+        </div>
+      ))}
+      <button type="button" onClick={addSigner} style={{...s.copyBtn,marginTop:4}}>+ Add signer</button>
+    </div>
+    <div style={s.modalFooter}>
+      <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
+      <button style={{...s.primaryBtn,opacity:allSigned?1:0.5}} onClick={save}>{editing ? 'Save' : 'Submit'}</button>
+    </div>
+  </div>
+</div>);
+}
+
+function ToolboxDetailModal({toolbox, onClose, onEdit, currentUser}) {
+const canEdit = currentUser?.role === 'manager' || currentUser?.role === 'team_leader' || toolbox.author === currentUser?.name;
+return (<div style={s.overlay} onClick={onClose}>
+  <div style={s.modal} onClick={e=>e.stopPropagation()}>
+    <div style={s.modalHeader}>
+      <div>
+        <div style={s.modalKicker}>Toolbox talk · {formatDate(toolbox.date)}</div>
+        <div style={s.modalTitle}>{toolbox.projectName}</div>
+      </div>
+      <button style={s.closeBtn} onClick={onClose}>×</button>
+    </div>
+    <div style={s.modalBody}>
+      <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,marginBottom:16,fontSize:12,lineHeight:1.7,border:'1px solid var(--border)'}}>
+        <div><span style={{fontWeight:700,color:'var(--text)'}}>📋 Project:</span> <span style={{color:'var(--text-muted)'}}>{toolbox.projectName}</span></div>
+        {toolbox.projectAddress && <div><span style={{fontWeight:700,color:'var(--text)'}}>📍 Address:</span> <span style={{color:'var(--text-muted)'}}>{toolbox.projectAddress}</span></div>}
+        {toolbox.teamLeader && <div><span style={{fontWeight:700,color:'var(--text)'}}>👷 Team leader:</span> <span style={{color:'var(--text-muted)'}}>{toolbox.teamLeader}</span></div>}
+        <div><span style={{fontWeight:700,color:'var(--text)'}}>📅 Date:</span> <span style={{color:'var(--text-muted)'}}>{formatDate(toolbox.date)}</span></div>
+      </div>
+      <div style={{marginBottom:14}}>
+        <div style={{...s.modalKicker,marginBottom:6}}>Attendees ({(toolbox.attendees||[]).length})</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+          {(toolbox.attendees || []).map(a => <span key={a} style={{padding:'4px 10px',background:'var(--accent-bg)',color:'var(--accent-text)',borderRadius:14,fontSize:12,fontWeight:600,border:'1px solid var(--accent)'}}>👷 {a}</span>)}
+        </div>
+      </div>
+      <div style={{marginBottom:14}}>
+        <div style={{...s.modalKicker,marginBottom:6}}>Today's work</div>
+        <div style={{padding:'10px 12px',background:'var(--bg-raised)',borderRadius:7,fontSize:13,color:'var(--text)',lineHeight:1.55,whiteSpace:'pre-wrap',border:'1px solid var(--border)'}}>{toolbox.todaysWork}</div>
+      </div>
+      {(toolbox.hazards || []).length > 0 && (
+        <div style={{marginBottom:14}}>
+          <div style={{...s.modalKicker,marginBottom:6}}>Hazards + controls</div>
+          {toolbox.hazards.map((h, i) => (
+            <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:6,padding:'10px 12px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)'}}>
+              <div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',marginBottom:3}}>⚠️ Hazard</div><div style={{fontSize:12,color:'var(--text)'}}>{h.hazard || '—'}</div></div>
+              <div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',marginBottom:3}}>🛡️ Control</div><div style={{fontSize:12,color:'var(--text)'}}>{h.control || '—'}</div></div>
+            </div>
+          ))}
+        </div>
+      )}
+      {(toolbox.signers || []).length > 0 && (
+        <div style={{marginBottom:8}}>
+          <div style={{...s.modalKicker,marginBottom:6}}>Sign off</div>
+          {toolbox.signers.map((sg, i) => (
+            <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'var(--bg-raised)',borderRadius:7,marginBottom:6,border:'1px solid var(--border)'}}>
+              <div style={{fontFamily:"Georgia, serif",fontSize:18,fontWeight:700,letterSpacing:3,color:'var(--success)',flexShrink:0,minWidth:50}}>{sg.initials}</div>
+              <div style={{flex:1,fontSize:13,color:'var(--text)'}}>{sg.name}</div>
+              {sg.signed && <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--success)',background:'var(--success-bg)',padding:'3px 8px',borderRadius:4,border:'1px solid var(--success)',textTransform:'uppercase'}}>✓ Signed</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',marginTop:14,textAlign:'right'}}>Recorded {formatTime(toolbox.createdAt)} · by {toolbox.author || '—'}</div>
+    </div>
+    <div style={s.modalFooter}>
+      {canEdit && <button style={s.cancelBtn} onClick={()=>onEdit(toolbox)}>✎ Edit</button>}
+      <button style={s.primaryBtn} onClick={onClose}>Close</button>
+    </div>
+  </div>
+</div>);
+}
+
+// ── RAMS (internal, mini-cards stored per project, EmailJS send) ────────────
+const EMAILJS_SERVICE_ID = 'service_uvmzqe8';
+const EMAILJS_TEMPLATE_ID = 'template_2blyfq4';
+const EMAILJS_PUBLIC_KEY = 'i7s-A66d2vgVzSnR5';
+
+function loadEmailJsOnce() {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  if (window.emailjs) return Promise.resolve(window.emailjs);
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';
+    script.onload = () => {
+      try { window.emailjs.init({publicKey: EMAILJS_PUBLIC_KEY}); resolve(window.emailjs); }
+      catch (e) { reject(e); }
+    };
+    script.onerror = () => reject(new Error('Failed to load EmailJS'));
+    document.head.appendChild(script);
+  });
+}
+
+function RamsView({project, ramsEntries, onNew, onView, onDelete, currentUser}) {
+const projectRams = useMemo(() => (ramsEntries || []).filter(r => r.projectId === project.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)), [ramsEntries, project.id]);
+return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}>
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:8}}>
+    <div>
+      <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:2}}>{projectRams.length} RAMS document{projectRams.length===1?'':'s'} on this project</div>
+      <div style={{fontSize:13,color:'var(--text-dim)'}}>Risk Assessment & Method Statement — tap a card to view.</div>
+    </div>
+    {(currentUser?.role === 'manager' || currentUser?.role === 'team_leader') && <button style={s.primaryBtn} onClick={onNew}>+ New RAMS</button>}
+  </div>
+  <div style={{flex:1,overflowY:'auto'}}>
+    {projectRams.length === 0
+      ? <div style={{...s.empty,height:'60%'}}><span style={s.emptyIcon}>📋</span><span style={s.emptyText}>No RAMS yet</span></div>
+      : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:10}}>
+          {projectRams.map(r => (
+            <div key={r.id} onClick={()=>onView(r)} style={{background:'var(--bg-panel)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 16px',boxShadow:'var(--shadow-sm)',cursor:'pointer',position:'relative'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                <span style={{fontSize:18}}>📋</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.ref}</div>
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14}}>{formatDate(r.date)}</div>
+                </div>
+                {(currentUser?.role === 'manager' || currentUser?.role === 'team_leader') && <button onClick={(e)=>{e.stopPropagation();if(confirm('Delete this RAMS?'))onDelete(r.id);}} style={{background:'none',border:'none',color:'var(--text-faint)',cursor:'pointer',fontSize:14,padding:0}}>×</button>}
+              </div>
+              {r.description && <div style={{fontSize:11,color:'var(--text-muted)',lineHeight:1.5,display:'-webkit-box',WebkitLineClamp:3,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{r.description}</div>}
+              <div style={{marginTop:10,display:'flex',justifyContent:'space-between',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-faint)'}}>by {r.author || '—'}</span>
+                <div style={{display:'flex',gap:4}}>
+                  {r.emailSent && <span style={{fontSize:9,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--success)',background:'var(--success-bg)',padding:'2px 6px',borderRadius:3,border:'1px solid var(--success)',textTransform:'uppercase'}}>📧 Sent</span>}
+                  <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--accent-text)',background:'var(--accent-bg)',padding:'3px 8px',borderRadius:4,border:'1px solid var(--accent)',textTransform:'uppercase',letterSpacing:0.2}}>View →</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+    }
+  </div>
+</div>);
+}
+
+function RamsFormModal({onClose, onSave, project, company, currentUser, latestRams, editing}) {
+// Inherit from project + latest RAMS (form continuity)
+const inherit = editing || latestRams || {};
+const [date, setDate] = useState(editing?.date || todayISO());
+const [description, setDescription] = useState(inherit.description || '');
+const [equipment, setEquipment] = useState(inherit.equipment || '');
+const [method, setMethod] = useState(inherit.method || '');
+const [emergency, setEmergency] = useState(inherit.emergency || '');
+const [ppe, setPpe] = useState(inherit.ppe || '');
+const [worksafeNumber, setWorksafeNumber] = useState(inherit.worksafeNumber || '');
+const [hazards, setHazards] = useState(inherit.hazards || [{hazard:'',risk:'',control:''}]);
+const [signers, setSigners] = useState(editing?.signers || [{name:currentUser?.name || '',initials:'',signed:false}]);
+const [sending, setSending] = useState(false);
+const [sendTo, setSendTo] = useState('');
+
+// Auto-inherited from project + company (read-only on form)
+const projectName = project.name;
+const location = project.address || '';
+const teamLeader = project.teamLeader || '';
+const clientName = project.clientName || '';
+const clientMobile = project.clientMobile || '';
+const companyName = company.name;
+
+const addHazard = () => setHazards(p => [...p, {hazard:'',risk:'',control:''}]);
+const removeHazard = (i) => setHazards(p => p.filter((_,j) => j !== i));
+const setHz = (i, key, val) => setHazards(p => p.map((h,j) => j===i ? {...h, [key]:val} : h));
+
+const addSigner = () => setSigners(p => [...p, {name:'',initials:'',signed:false}]);
+const removeSigner = (i) => setSigners(p => p.filter((_,j) => j !== i));
+const setSgn = (i, key, val) => setSigners(p => p.map((sg,j) => j===i ? {...sg, [key]:val} : sg));
+const allSigned = signers.length > 0 && signers.every(sg => sg.signed && sg.initials.trim() && sg.name.trim());
+
+const companyUsers = (company?.users || []).map(u => u.name);
+
+const buildRams = (sendStatus = false) => ({
+  id: editing?.id || ('rams-'+Date.now().toString(36)),
+  ref: editing?.ref || ('RAMS-'+Date.now().toString().slice(-6)),
+  projectId: project.id,
+  projectName, location, teamLeader, clientName, clientMobile, companyName,
+  date, worksafeNumber: worksafeNumber.trim(),
+  description: description.trim(), equipment: equipment.trim(), method: method.trim(),
+  emergency: emergency.trim(), ppe: ppe.trim(),
+  hazards: hazards.filter(h => h.hazard.trim() || h.risk.trim() || h.control.trim()),
+  signers,
+  author: currentUser?.name || '—',
+  emailSent: sendStatus || editing?.emailSent || false,
+  emailSentAt: sendStatus ? new Date().toISOString() : editing?.emailSentAt,
+  emailSentTo: sendStatus ? (sendTo || getManagerEmail()) : editing?.emailSentTo,
+  createdAt: editing?.createdAt || new Date().toISOString(),
+});
+
+const getManagerEmail = () => {
+  const mgr = (company?.users || []).find(u => u.role === 'manager');
+  return mgr?.email || '';
+};
+
+const saveOnly = () => {
+  if (!description.trim()) return alert('Describe the work.');
+  if (!allSigned) return alert('All signers must sign off.');
+  onSave(buildRams(false));
+  onClose();
+};
+
+const saveAndSend = async () => {
+  if (!description.trim()) return alert('Describe the work.');
+  if (!allSigned) return alert('All signers must sign off.');
+  const managerEmail = sendTo.trim() || getManagerEmail();
+  if (!managerEmail) return alert('No manager email found. Add one in Settings → Users.');
+  setSending(true);
+  try {
+    const emailjs = await loadEmailJsOnce();
+    const rams = buildRams(true);
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      to_email: managerEmail,
+      reply_to: currentUser?.email || managerEmail,
+      project_name: projectName,
+      location,
+      date: formatDate(date),
+      technicians: signers.map(s => s.name).join(', '),
+      team_leader: teamLeader,
+      ref: rams.ref,
+      company_name: companyName,
+    });
+    onSave(rams);
+    alert('RAMS saved and email sent to ' + managerEmail);
+    onClose();
+  } catch (err) {
+    console.error(err);
+    alert('Could not send email: ' + (err.text || err.message || 'unknown error') + '\n\nThe RAMS will still be saved locally.');
+    onSave(buildRams(false));
+    onClose();
+  } finally {
+    setSending(false);
+  }
+};
+
+const sectionTitle = (n, label) => (
+  <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 14px',background:'var(--bg-sunken)',borderRadius:7,marginBottom:12,marginTop:18,border:'1px solid var(--border)'}}>
+    <span style={{background:'var(--accent)',color:'#fff',borderRadius:'50%',width:22,height:22,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,flexShrink:0}}>{n}</span>
+    <span style={{fontSize:13,fontWeight:700,color:'var(--text)'}}>{label}</span>
+  </div>
+);
+
+const labelVal = (l, v) => (
+  <div style={{marginBottom:6}}>
+    <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:2}}>{l}</div>
+    <div style={{fontSize:13,color:'var(--text)'}}>{v || '—'}</div>
+  </div>
+);
+
+return (<div style={s.overlay} onClick={onClose}>
+  <div style={s.modal} onClick={e=>e.stopPropagation()}>
+    <div style={s.modalHeader}>
+      <div>
+        <div style={s.modalKicker}>{editing ? 'Edit' : 'New'} · RAMS</div>
+        <div style={s.modalTitle}>{projectName}</div>
+      </div>
+      <button style={s.closeBtn} onClick={onClose}>×</button>
+    </div>
+    <div style={s.modalBody}>
+      {sectionTitle(1, 'Project details')}
+      <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,marginBottom:6,border:'1px solid var(--border)',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+        {labelVal('Project', projectName)}
+        {labelVal('Location', location)}
+        {labelVal('Team leader', teamLeader)}
+        {labelVal('Company', companyName)}
+        {labelVal('Client', clientName)}
+        {labelVal('Mobile', clientMobile)}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:10}}>
+        <div>
+          <label style={s.label}>Date</label>
+          <input style={s.input} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+        </div>
+        <div>
+          <label style={s.label}>Worksafe Notification Number</label>
+          <input style={s.input} value={worksafeNumber} onChange={e=>setWorksafeNumber(e.target.value)} placeholder="WSN-001"/>
+        </div>
+      </div>
+
+      {sectionTitle(2, 'Description of work')}
+      <textarea style={s.textarea} value={description} onChange={e=>setDescription(e.target.value)} placeholder="Brief explanation of the task..." rows={3}/>
+
+      {sectionTitle(3, 'Specific rope access equipment')}
+      <textarea style={s.textarea} value={equipment} onChange={e=>setEquipment(e.target.value)} placeholder="List all rope access equipment..." rows={3}/>
+
+      {sectionTitle(4, 'Method statement')}
+      <textarea style={s.textarea} value={method} onChange={e=>setMethod(e.target.value)} placeholder="Step by step method..." rows={4}/>
+
+      {sectionTitle(5, 'Risk assessment')}
+      {hazards.map((h, i) => (
+        <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr auto',gap:6,marginBottom:6,padding:8,background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',alignItems:'flex-start'}}>
+          <div><div style={{...s.label,marginBottom:3,fontSize:9}}>Hazard</div><textarea style={{...s.textarea,marginBottom:0,minHeight:50}} value={h.hazard} onChange={e=>setHz(i,'hazard',e.target.value)} rows={2}/></div>
+          <div><div style={{...s.label,marginBottom:3,fontSize:9}}>Risk</div><textarea style={{...s.textarea,marginBottom:0,minHeight:50}} value={h.risk} onChange={e=>setHz(i,'risk',e.target.value)} rows={2}/></div>
+          <div><div style={{...s.label,marginBottom:3,fontSize:9}}>Control</div><textarea style={{...s.textarea,marginBottom:0,minHeight:50}} value={h.control} onChange={e=>setHz(i,'control',e.target.value)} rows={2}/></div>
+          {hazards.length > 1 && <button type="button" onClick={()=>removeHazard(i)} style={{background:'var(--danger-bg)',color:'var(--danger)',border:'1px solid var(--danger)',borderRadius:6,padding:'4px 8px',fontSize:11,cursor:'pointer',marginTop:18}}>×</button>}
+        </div>
+      ))}
+      <button type="button" onClick={addHazard} style={s.copyBtn}>+ Add row</button>
+
+      {sectionTitle(6, 'Emergency / rescue plan')}
+      <textarea style={s.textarea} value={emergency} onChange={e=>setEmergency(e.target.value)} rows={3}/>
+
+      {sectionTitle(7, 'PPE for this specific job')}
+      <textarea style={s.textarea} value={ppe} onChange={e=>setPpe(e.target.value)} rows={3}/>
+
+      {sectionTitle(8, 'Sign off')}
+      {signers.map((sg, i) => (
+        <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 100px 1fr auto',gap:8,marginBottom:8,padding:10,background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',alignItems:'end'}}>
+          <div>
+            <label style={{...s.label,marginBottom:4}}>Name</label>
+            {companyUsers.length > 0
+              ? <select style={{...s.input,marginBottom:0}} value={sg.name} onChange={e=>setSgn(i,'name',e.target.value)}>
+                  <option value="">— Pick —</option>
+                  {companyUsers.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              : <input style={{...s.input,marginBottom:0}} value={sg.name} onChange={e=>setSgn(i,'name',e.target.value)} placeholder="Name"/>
+            }
+          </div>
+          <div>
+            <label style={{...s.label,marginBottom:4}}>Initials</label>
+            <input style={{...s.input,marginBottom:0,fontFamily:"Georgia, serif",fontSize:18,fontWeight:700,letterSpacing:3,textAlign:'center',padding:'8px 6px',color:sg.signed?'var(--success)':'var(--text)',borderColor:sg.signed?'var(--success)':'var(--border)'}} maxLength={4} value={sg.initials} onChange={e=>setSgn(i,'initials',e.target.value.toUpperCase().slice(0,4))} placeholder="LG"/>
+          </div>
+          <div>
+            <label style={{...s.label,marginBottom:4}}>Signed</label>
+            <label onClick={()=>setSgn(i,'signed',!sg.signed)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:sg.signed?'var(--success-bg)':'var(--bg-input)',border:`1px solid ${sg.signed?'var(--success)':'var(--border)'}`,borderRadius:7,cursor:'pointer'}}>
+              <div style={{width:18,height:18,borderRadius:4,background:sg.signed?'var(--success)':'transparent',border:`2px solid ${sg.signed?'var(--success)':'var(--text-faint)'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                {sg.signed && <span style={{color:'#fff',fontSize:12,fontWeight:700}}>✓</span>}
+              </div>
+              <span style={{fontSize:12,color:sg.signed?'var(--success)':'var(--text-muted)'}}>{sg.signed?'Confirmed':'I confirm'}</span>
+            </label>
+          </div>
+          {signers.length > 1 && <button type="button" onClick={()=>removeSigner(i)} style={{background:'var(--danger-bg)',color:'var(--danger)',border:'1px solid var(--danger)',borderRadius:6,padding:'6px 10px',fontSize:12,cursor:'pointer'}}>×</button>}
+        </div>
+      ))}
+      <button type="button" onClick={addSigner} style={s.copyBtn}>+ Add signer</button>
+
+      <div style={{marginTop:24,padding:'14px 16px',background:'var(--bg-sunken)',borderRadius:8,border:'1px solid var(--border)'}}>
+        <label style={s.label}>Send to (manager email)</label>
+        <input style={s.input} type="email" value={sendTo} onChange={e=>setSendTo(e.target.value)} placeholder={getManagerEmail() || 'manager@company.com'}/>
+        <div style={{fontSize:11,color:'var(--text-dim)',marginTop:-10}}>Default: {getManagerEmail() || '(no manager email set)'}</div>
+      </div>
+    </div>
+    <div style={s.modalFooter}>
+      <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
+      <button style={{...s.copyBtn,opacity:allSigned?1:0.5}} onClick={saveOnly} disabled={!allSigned}>Save only</button>
+      <button style={{...s.primaryBtn,opacity:allSigned?1:0.5}} onClick={saveAndSend} disabled={!allSigned || sending}>{sending ? 'Sending…' : '📧 Save & email'}</button>
+    </div>
+  </div>
+</div>);
+}
+
+function RamsDetailModal({rams, onClose, onEdit, currentUser}) {
+const canEdit = currentUser?.role === 'manager' || currentUser?.role === 'team_leader';
+const labelVal = (l, v) => (
+  <div style={{marginBottom:8}}>
+    <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:3}}>{l}</div>
+    <div style={{fontSize:13,color:'var(--text)',whiteSpace:'pre-wrap',lineHeight:1.5}}>{v || '—'}</div>
+  </div>
+);
+const sectionTitle = (n, label) => (
+  <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 14px',background:'var(--bg-sunken)',borderRadius:7,marginBottom:12,marginTop:18,border:'1px solid var(--border)'}}>
+    <span style={{background:'var(--accent)',color:'#fff',borderRadius:'50%',width:22,height:22,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,flexShrink:0}}>{n}</span>
+    <span style={{fontSize:13,fontWeight:700,color:'var(--text)'}}>{label}</span>
+  </div>
+);
+return (<div style={s.overlay} onClick={onClose}>
+  <div style={s.modal} onClick={e=>e.stopPropagation()}>
+    <div style={s.modalHeader}>
+      <div>
+        <div style={s.modalKicker}>RAMS · {rams.ref}</div>
+        <div style={s.modalTitle}>{rams.projectName}</div>
+        {rams.emailSent && <div style={{fontSize:11,color:'var(--success)',fontFamily:"'JetBrains Mono',monospace",marginTop:4}}>📧 Emailed to {rams.emailSentTo} · {formatTime(rams.emailSentAt)}</div>}
+      </div>
+      <button style={s.closeBtn} onClick={onClose}>×</button>
+    </div>
+    <div style={s.modalBody}>
+      {sectionTitle(1, 'Project details')}
+      <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+        {labelVal('Project', rams.projectName)}
+        {labelVal('Location', rams.location)}
+        {labelVal('Date', formatDate(rams.date))}
+        {labelVal('Worksafe #', rams.worksafeNumber)}
+        {labelVal('Team leader', rams.teamLeader)}
+        {labelVal('Company', rams.companyName)}
+        {labelVal('Client', rams.clientName)}
+        {labelVal('Client mobile', rams.clientMobile)}
+      </div>
+      {sectionTitle(2, 'Description of work')}
+      <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)'}}>{labelVal('', rams.description)}</div>
+      {sectionTitle(3, 'Equipment')}
+      <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)'}}>{labelVal('', rams.equipment)}</div>
+      {sectionTitle(4, 'Method')}
+      <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)'}}>{labelVal('', rams.method)}</div>
+      {sectionTitle(5, 'Risk assessment')}
+      {(rams.hazards || []).map((h, i) => (
+        <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:6,padding:8,background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)'}}>
+          {labelVal('Hazard', h.hazard)}
+          {labelVal('Risk', h.risk)}
+          {labelVal('Control', h.control)}
+        </div>
+      ))}
+      {sectionTitle(6, 'Emergency')}
+      <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)'}}>{labelVal('', rams.emergency)}</div>
+      {sectionTitle(7, 'PPE')}
+      <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)'}}>{labelVal('', rams.ppe)}</div>
+      {sectionTitle(8, 'Sign off')}
+      {(rams.signers || []).map((sg, i) => (
+        <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'var(--bg-raised)',borderRadius:7,marginBottom:6,border:'1px solid var(--border)'}}>
+          <div style={{fontFamily:"Georgia, serif",fontSize:18,fontWeight:700,letterSpacing:3,color:'var(--success)',flexShrink:0,minWidth:50}}>{sg.initials}</div>
+          <div style={{flex:1,fontSize:13,color:'var(--text)'}}>{sg.name}</div>
+          {sg.signed && <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--success)',background:'var(--success-bg)',padding:'3px 8px',borderRadius:4,border:'1px solid var(--success)',textTransform:'uppercase'}}>✓ Signed</span>}
+        </div>
+      ))}
+      <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',marginTop:14,textAlign:'right'}}>Recorded {formatTime(rams.createdAt)} · by {rams.author || '—'}</div>
+    </div>
+    <div style={s.modalFooter}>
+      {canEdit && <button style={s.cancelBtn} onClick={()=>onEdit(rams)}>✎ Edit</button>}
+      <button style={s.primaryBtn} onClick={onClose}>Close</button>
+    </div>
+  </div>
+</div>);
 }
 
 function UsersView({company, onUpdateCompany, currentUser}) {
@@ -969,7 +1677,7 @@ return (<div style={{maxWidth:560}}>
 </div>);
 }
 
-function ThreadView({channel, thread, notes, setNotes, allChannels, incidents, onIncidentSubmit, onIncidentDelete, onMentionClick, onJumpToProject, onUpdateMaterials, onAddMaterial, calendarEntries, onNewBooking, onEditBooking, onDeleteBooking, getCategory, allJobs, timesheets, onAddTimesheet, onConfirmTimesheet, onDeleteTimesheet, onBulkConfirmTimesheet, crew, onAddCrew, onRemoveCrew, isMobile, company, currentUser, onUpdateCompany}) {
+function ThreadView({channel, thread, notes, setNotes, allChannels, incidents, onIncidentSubmit, onIncidentDelete, onMentionClick, onJumpToProject, onUpdateMaterials, onAddMaterial, calendarEntries, onNewBooking, onEditBooking, onDeleteBooking, getCategory, allJobs, timesheets, onAddTimesheet, onConfirmTimesheet, onDeleteTimesheet, onBulkConfirmTimesheet, crew, onAddCrew, onRemoveCrew, isMobile, company, currentUser, onUpdateCompany, toolboxes, onNewToolbox, onViewToolbox, onDeleteToolbox, ramsEntries, onNewRams, onViewRams, onDeleteRams}) {
 if(channel.type === 'plain') { if(channel.name === '📢announcements') { return <AnnouncementsView channel={channel} notes={notes} setNotes={setNotes} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>; } return <NotesFeed channelId={channel.id} threadId="main" notes={notes} setNotes={setNotes} placeholder={`Post in ${channel.name}... (type # to mention)`} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>; }
 if(channel.type === 'materials') return <MaterialsView channel={channel} onUpdate={onUpdateMaterials} onAdd={onAddMaterial}/>;
 if(channel.type === 'calendar') return <CalendarView entries={calendarEntries} jobChannels={allJobs} allChannels={allChannels} getCategory={getCategory} onNewBooking={onNewBooking} onEditBooking={onEditBooking} onDeleteBooking={onDeleteBooking} onJumpToProject={onJumpToProject} onMentionClick={onMentionClick} company={company}/>;
@@ -982,8 +1690,8 @@ if(channel.type === 'company-info') return <CompanyInfoView company={company} on
 if(thread.id === 'info') return <InfoDisplay channel={channel}/>;
 if(thread.id === 'timesheet') return <ProjectTimesheetView channel={channel} timesheets={timesheets} onAdd={onAddTimesheet} onConfirm={onConfirmTimesheet} onDelete={onDeleteTimesheet} onBulkConfirm={onBulkConfirmTimesheet} currentUser={currentUser}/>;
 if(thread.id === 'incidents') return <ProjectIncidentsView channel={channel} incidents={incidents} allChannels={allChannels} onMentionClick={onMentionClick} onAdd={onIncidentSubmit} onDelete={onIncidentDelete}/>;
-// RAMS: embedded iframe, pre-filled with project data
-if(thread.id === 'rams') return <RamsEmbedView project={channel}/>;
+if(thread.id === 'toolbox') return <ToolboxView project={channel} toolboxes={toolboxes} onNew={onNewToolbox} onView={onViewToolbox} onDelete={onDeleteToolbox} currentUser={currentUser}/>;
+if(thread.id === 'rams') return <RamsView project={channel} ramsEntries={ramsEntries} onNew={onNewRams} onView={onViewRams} onDelete={onDeleteRams} currentUser={currentUser}/>;
 return <NotesFeed channelId={channel.id} threadId={thread.id} notes={notes} setNotes={setNotes} placeholder={`Add a ${thread.label} note... (type # to mention)`} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>;
 }
 
@@ -1018,7 +1726,7 @@ return null;
 
 function App({company, currentUser, onLogout, onUpdateCompany}) {
 const k = (key) => 'th-co-' + company.id + ':' + key;
-const [theme, setTheme] = useTheme(); const [data, setData] = useStorage(k('data'), null); const [notes, setNotes] = useStorage(k('notes'), {}); const [incidents, setIncidents] = useStorage(k('incidents'), []); const [calendarEntries, setCalendarEntries] = useStorage(k('calendar'), null); const [crew, setCrew] = useStorage(k('crew'), []); const [timesheets, setTimesheets] = useStorage(k('timesheets'), null); const [activeId, setActiveId] = useState(null); const [activeThreadId, setActiveThreadId] = useState('info'); const [showJobWizard, setShowJobWizard] = useState(false); const [editingJob, setEditingJob] = useState(null); const [jobTargetCategory, setJobTargetCategory] = useState('cat-run'); const [showShare, setShowShare] = useState(false); const [showCategoryModal, setShowCategoryModal] = useState(false); const [editingCategory, setEditingCategory] = useState(null); const [showTypePicker, setShowTypePicker] = useState(null); const [showAddThread, setShowAddThread] = useState(false); const [showIncidentForm, setShowIncidentForm] = useState(false); const [showAddMaterial, setShowAddMaterial] = useState(false); const [bookingModal, setBookingModal] = useState(null); const [sharedChannel, setSharedChannel] = useState(null); const [showTimesheetModal, setShowTimesheetModal] = useState(null); const [draggedCategory, setDraggedCategory] = useState(null);
+const [theme, setTheme] = useTheme(); const [data, setData] = useStorage(k('data'), null); const [notes, setNotes] = useStorage(k('notes'), {}); const [incidents, setIncidents] = useStorage(k('incidents'), []); const [calendarEntries, setCalendarEntries] = useStorage(k('calendar'), null); const [crew, setCrew] = useStorage(k('crew'), []); const [timesheets, setTimesheets] = useStorage(k('timesheets'), null); const [toolboxes, setToolboxes] = useStorage(k('toolboxes'), []); const [ramsEntries, setRamsEntries] = useStorage(k('rams'), []); const [activeId, setActiveId] = useState(null); const [activeThreadId, setActiveThreadId] = useState('info'); const [showJobWizard, setShowJobWizard] = useState(false); const [editingJob, setEditingJob] = useState(null); const [jobTargetCategory, setJobTargetCategory] = useState('cat-run'); const [showShare, setShowShare] = useState(false); const [showCategoryModal, setShowCategoryModal] = useState(false); const [editingCategory, setEditingCategory] = useState(null); const [showTypePicker, setShowTypePicker] = useState(null); const [showAddThread, setShowAddThread] = useState(false); const [showIncidentForm, setShowIncidentForm] = useState(false); const [showAddMaterial, setShowAddMaterial] = useState(false); const [bookingModal, setBookingModal] = useState(null); const [sharedChannel, setSharedChannel] = useState(null); const [showTimesheetModal, setShowTimesheetModal] = useState(null); const [draggedCategory, setDraggedCategory] = useState(null); const [toolboxModal, setToolboxModal] = useState(null); const [viewToolbox, setViewToolbox] = useState(null); const [ramsModal, setRamsModal] = useState(null); const [viewRams, setViewRams] = useState(null);
 const [isOnline, setIsOnline] = useState(typeof navigator==='undefined' || navigator.onLine!==false);
 const isMobile = useIsMobile();
 const [drawerOpen, setDrawerOpen] = useState(false);
@@ -1083,6 +1791,14 @@ const confirmTimesheetEntry = (id) => { setTimesheets(prev => (prev||[]).map(e =
 const deleteTimesheetEntry = (id) => { if(confirm('Delete this timesheet entry?')) setTimesheets(prev => (prev||[]).filter(e => e.id !== id)); };
 const bulkConfirmTimesheet = () => { if(!channel) return; setTimesheets(prev => (prev||[]).map(e => e.projectId === channel.id && e.status === 'pending' ? {...e, status:'confirmed'} : e)); };
 const addCrew = (member) => setCrew(prev => [...prev, member]); const removeCrew = (id) => setCrew(prev => prev.filter(c => c.id !== id));
+const saveToolbox = (tb) => { setToolboxes(prev => { const list = prev || []; const idx = list.findIndex(t => t.id === tb.id); if (idx >= 0) { const next = [...list]; next[idx] = tb; return next; } return [tb, ...list]; }); };
+const deleteToolbox = (id) => setToolboxes(prev => (prev||[]).filter(t => t.id !== id));
+const saveRams = (r) => { setRamsEntries(prev => { const list = prev || []; const idx = list.findIndex(rr => rr.id === r.id); if (idx >= 0) { const next = [...list]; next[idx] = r; return next; } return [r, ...list]; }); };
+const deleteRams = (id) => setRamsEntries(prev => (prev||[]).filter(r => r.id !== id));
+const latestRamsForProject = (projectId) => {
+  const list = (ramsEntries || []).filter(r => r.projectId === projectId).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+  return list[0];
+};
 const selectChannel = (id) => { setActiveId(id); setActiveThreadId('info'); if(isMobile) setDrawerOpen(false); }; const handleMentionClick = (id) => selectChannel(id);
 const allThreads = channel && channel.type === 'job' ? [...(channel.customThreads || []), ...DEFAULT_THREADS] : []; const currentThread = allThreads.find(t => t.id === activeThreadId) || allThreads[0]; const currentCategory = channel ? d.categories.find(c => c.id === channel.categoryId) : null; const channelColor = channel && channel.type === 'job' && channel.colorId && channel.status !== 'done' ? getColor(channel.colorId) : null;
 const isRamsTab = channel && channel.type === 'job' && activeThreadId === 'rams';
@@ -1184,11 +1900,11 @@ return (<div style={s.app}>
       </div>
     )}
     <div style={contentStyle}>
-      <ThreadView channel={channel} thread={currentThread} notes={notes} setNotes={setNotes} allChannels={allChannelsIncludingDynamic} incidents={incidents} onIncidentSubmit={() => setShowIncidentForm(true)} onIncidentDelete={deleteIncident} onMentionClick={handleMentionClick} onJumpToProject={selectChannel} onUpdateMaterials={updateMaterials} onAddMaterial={() => setShowAddMaterial(true)} calendarEntries={calendarEntries || []} onNewBooking={(date) => setBookingModal({defaultDate: date})} onEditBooking={(entry) => setBookingModal({editing: entry})} onDeleteBooking={deleteBooking} getCategory={getCategory} allJobs={allJobs} timesheets={timesheets || []} onAddTimesheet={() => setShowTimesheetModal({projectId:channel.id, projectName:channel.name})} onConfirmTimesheet={confirmTimesheetEntry} onDeleteTimesheet={deleteTimesheetEntry} onBulkConfirmTimesheet={bulkConfirmTimesheet} crew={crew} onAddCrew={addCrew} onRemoveCrew={removeCrew} isMobile={isMobile} company={company} currentUser={currentUser} onUpdateCompany={onUpdateCompany}/>
+      <ThreadView channel={channel} thread={currentThread} notes={notes} setNotes={setNotes} allChannels={allChannelsIncludingDynamic} incidents={incidents} onIncidentSubmit={() => setShowIncidentForm(true)} onIncidentDelete={deleteIncident} onMentionClick={handleMentionClick} onJumpToProject={selectChannel} onUpdateMaterials={updateMaterials} onAddMaterial={() => setShowAddMaterial(true)} calendarEntries={calendarEntries || []} onNewBooking={(date) => setBookingModal({defaultDate: date})} onEditBooking={(entry) => setBookingModal({editing: entry})} onDeleteBooking={deleteBooking} getCategory={getCategory} allJobs={allJobs} timesheets={timesheets || []} onAddTimesheet={() => setShowTimesheetModal({projectId:channel.id, projectName:channel.name})} onConfirmTimesheet={confirmTimesheetEntry} onDeleteTimesheet={deleteTimesheetEntry} onBulkConfirmTimesheet={bulkConfirmTimesheet} crew={crew} onAddCrew={addCrew} onRemoveCrew={removeCrew} isMobile={isMobile} company={company} currentUser={currentUser} onUpdateCompany={onUpdateCompany} toolboxes={toolboxes} onNewToolbox={()=>setToolboxModal({})} onViewToolbox={(tb)=>setViewToolbox(tb)} onDeleteToolbox={deleteToolbox} ramsEntries={ramsEntries} onNewRams={()=>setRamsModal({})} onViewRams={(r)=>setViewRams(r)} onDeleteRams={deleteRams}/>
     </div>
   </>)}
 </div>
-{showJobWizard && (<JobWizard onClose={() => setShowJobWizard(false)} onSave={saveJob} editing={editingJob}/>)}
+{showJobWizard && (<JobWizard onClose={() => setShowJobWizard(false)} onSave={saveJob} editing={editingJob} company={company}/>)}
 {showShare && channel && channel.type === 'job' && (<ShareModal channel={channel} onClose={() => setShowShare(false)}/>)}
 {showCategoryModal && (<CategoryModal onClose={() => { setShowCategoryModal(false); setEditingCategory(null); }} onSave={saveCategory} editing={editingCategory}/>)}
 {showTypePicker && (<ChannelTypePicker onClose={() => setShowTypePicker(null)} categoryName={showTypePicker.category.name} onPickJob={() => { setJobTargetCategory(showTypePicker.category.id); setEditingJob(null); setShowTypePicker(null); setShowJobWizard(true); }} onPickPlain={(name) => createPlainChannel(showTypePicker.category.id, name)} onPickMaterials={(name) => createMaterialsChannel(showTypePicker.category.id, name)} onPickCalendar={(name) => createCalendarChannel(showTypePicker.category.id, name)}/>)}
@@ -1197,6 +1913,10 @@ return (<div style={s.app}>
 {showAddMaterial && <AddMaterialModal onClose={() => setShowAddMaterial(false)} onSave={addMaterial}/>}
 {bookingModal && (<CalendarBookingModal onClose={() => setBookingModal(null)} onSave={saveBooking} jobChannels={allJobs.filter(j => j.status !== 'done')} allChannels={allChannelsIncludingDynamic} getCategory={getCategory} editing={bookingModal.editing} defaultDate={bookingModal.defaultDate} company={company}/>)}
 {showTimesheetModal && (<TimesheetEntryModal onClose={() => setShowTimesheetModal(null)} onSave={(entry)=>{saveTimesheetEntry(entry); setShowTimesheetModal(null);}} crew={crew} projectId={showTimesheetModal.projectId} projectName={showTimesheetModal.projectName} editing={showTimesheetModal.editing} timesheets={timesheets || []} onAddCrew={addCrew} currentUser={currentUser} company={company}/>)}
+{toolboxModal && channel && channel.type === 'job' && (<ToolboxFormModal onClose={()=>setToolboxModal(null)} onSave={saveToolbox} project={channel} company={company} currentUser={currentUser} editing={toolboxModal.editing}/>)}
+{viewToolbox && (<ToolboxDetailModal toolbox={viewToolbox} onClose={()=>setViewToolbox(null)} onEdit={(tb)=>{setToolboxModal({editing:tb});setViewToolbox(null);}} currentUser={currentUser}/>)}
+{ramsModal && channel && channel.type === 'job' && (<RamsFormModal onClose={()=>setRamsModal(null)} onSave={saveRams} project={channel} company={company} currentUser={currentUser} latestRams={latestRamsForProject(channel.id)} editing={ramsModal.editing}/>)}
+{viewRams && (<RamsDetailModal rams={viewRams} onClose={()=>setViewRams(null)} onEdit={(r)=>{setRamsModal({editing:r});setViewRams(null);}} currentUser={currentUser}/>)}
 </div>);
 }
 
