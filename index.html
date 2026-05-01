@@ -71,10 +71,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   font-size:1.1em;
   padding:2px;
 }
-/* In dark mode, invert the default black icon to white */
-:root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
-:root[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator {
-  filter:invert(1) brightness(2);
+/* Calendar/clock icon: yellow in BOTH light and dark modes for max visibility */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(80%) sepia(80%) saturate(2000%) hue-rotate(0deg) brightness(1.1);
+  cursor: pointer;
 }
 </style>
 <script>
