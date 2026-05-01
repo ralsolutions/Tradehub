@@ -7,15 +7,15 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#0891b2"/>
-<title>RAL — Project Manager</title>
+<title>TradeHub — Project Manager for Trades</title>
 
 <!-- PWA manifest & icons -->
 <link rel="manifest" href="manifest.json"/>
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png"/>
 <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png"/>
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
-<meta name="apple-mobile-web-app-title" content="RAL PM"/>
-<meta name="application-name" content="RAL PM"/>
+<meta name="apple-mobile-web-app-title" content="TradeHub"/>
+<meta name="application-name" content="TradeHub"/>
 
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -64,7 +64,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)!important;}
 </head>
 <body>
 <script>
-// Auto-migration v6: fix tool emojis, add roster emoji, add RAMS tab support
+// Auto-migration: kept for legacy data
 (function(){
 try{
 var raw=localStorage.getItem('ral-data-v5');
@@ -450,8 +450,6 @@ function getColor(colorId) { return PROJECT_COLORS.find(c => c.id === colorId) |
 
 function seedData() {
 const now = Date.now();
-const colors = PROJECT_COLORS.map(c => c.id);
-const job = (slug, colorId, extra) => ({ id:'seed-'+slug, type:'job', status:'running', colorId, customThreads:[], createdAt: new Date(now).toISOString(), whatsapp: FAKE_WA + slug, surveyLink: SURVEY_URL, ...extra });
 return {
 categories: [
 {id:'cat-run',name:'Projects on Run',emoji:'🚧',system:'running',collapsed:false,order:0},
@@ -462,19 +460,11 @@ categories: [
 {id:'cat-crew',name:'Crew',emoji:'👥',system:null,collapsed:false,order:5},
 ],
 channels: [
-{...job('80-queen-street', colors[0], { name:'80 Queen Street', categoryId:'cat-run', address:'80 Queen St, Auckland CBD', parking:'No parking on site — use Victoria St carpark', assemblingPoint:'Ground floor lobby', toilet:'Level 2 bathrooms', keyLocation:'Reception desk, ask for building manager', firstAid:'Site office level 1', lunchroom:'Café next door or level 1 breakroom', clientName:'Tony Martinez', clientMobile:'+64 21 555 0101', teamLeader:'Felipe', startDate:'2026-04-12' })},
-{...job('sky-tower-facade-clean', colors[1], { name:'Sky Tower — Facade Clean', categoryId:'cat-run', address:'Victoria St W, Auckland CBD', parking:'Loading bay access only — book 24h ahead', assemblingPoint:'Sky Tower service entrance', toilet:'Ground floor staff amenities', keyLocation:'Security desk — sign in required', firstAid:'Security office', lunchroom:'SkyCity food court', clientName:'Sarah Chen', clientMobile:'+64 27 555 0202', teamLeader:'Lionel', startDate:'2026-04-14' })},
-{...job('2-bond-st-sydney', colors[2], { name:'2 Bond St Sydney', categoryId:'cat-run', address:'2 Bond St, Sydney CBD', parking:'No parking. Public transport recommended — middle of CBD', assemblingPoint:'Basement entrance', toilet:'Next to site office in the basement', keyLocation:'RMW Site. Lockpad TBC', firstAid:'In site office', lunchroom:'In the site office', clientName:'Tony', clientMobile:'+61 4 555 0303', teamLeader:'Felipe', startDate:'2026-04-16' })},
-{...job('hamilton-warehouse', colors[3], { name:'Hamilton Warehouse Inspection', categoryId:'cat-done', status:'done', address:'120 Kent St, Hamilton', parking:'On-site parking available', assemblingPoint:'Warehouse main gate', toilet:'Inside warehouse by office', keyLocation:'Padlock code 4421', firstAid:'Main office', lunchroom:'On-site canteen', clientName:'Mike Thompson', clientMobile:'+64 21 555 0404', teamLeader:'Lionel', startDate:'2026-03-02' })},
-{...job('wellington-harbour-tower', colors[4], { name:'Wellington Harbour Tower', categoryId:'cat-done', status:'done', address:'15 Customhouse Quay, Wellington', parking:'Street parking (metered)', assemblingPoint:'Lobby reception', toilet:'Level 3 bathrooms', keyLocation:'Collect from concierge', firstAid:'Concierge desk', lunchroom:'Ground floor café', clientName:'Emma Wilson', clientMobile:'+64 27 555 0505', teamLeader:'Felipe', startDate:'2026-02-15' })},
 {id:'ts-overview',type:'ts-overview',name:'worked-hours',categoryId:'cat-timesheets',createdAt:new Date(now).toISOString()},
 {id:'inc-near-miss',type:'incidents-bin',incidentType:'near-miss',name:'near-miss',categoryId:'cat-incidents',createdAt:new Date(now).toISOString()},
 {id:'inc-incident',type:'incidents-bin',incidentType:'incident',name:'incident',categoryId:'cat-incidents',createdAt:new Date(now).toISOString()},
 {id:'inc-accident',type:'incidents-bin',incidentType:'accident',name:'accident',categoryId:'cat-incidents',createdAt:new Date(now).toISOString()},
-{id:'mat-paint',type:'materials',name:'🎨paint',categoryId:'cat-tools',createdAt:new Date(now).toISOString(), materials:[ {id:'m1',name:'Resene Lumbersider — white',qty:'4 × 10L',done:false}, {id:'m2',name:'Sash brushes (50mm)',qty:'6',done:false}, {id:'m3',name:'Roller sleeves — short nap',qty:'12',done:true}, {id:'m4',name:'Drop sheets (4x5m)',qty:'3',done:false} ]},
-{id:'mat-netting',type:'materials',name:'🥅netting',categoryId:'cat-tools',createdAt:new Date(now).toISOString(), materials:[ {id:'m1',name:'Bird netting (50m roll)',qty:'2',done:false}, {id:'m2',name:'Stainless steel clips',qty:'200',done:false}, {id:'m3',name:'Tensioning wire',qty:'100m',done:false} ]},
-{id:'mat-sealant',type:'materials',name:'🔫sealant',categoryId:'cat-tools',createdAt:new Date(now).toISOString(), materials:[ {id:'m1',name:'Sika Liquid Membrane (15L)',qty:'2',done:false}, {id:'m2',name:'Caulking gun',qty:'2',done:true}, {id:'m3',name:'Sikaflex 11FC sausages',qty:'24',done:false} ]},
-{id:'crew-announcements',type:'plain',name:'📢announcements',categoryId:'cat-crew',whatsappLink:'https://chat.whatsapp.com/ral-crew-announcements-demo',createdAt:new Date(now).toISOString()},
+{id:'crew-announcements',type:'plain',name:'📢announcements',categoryId:'cat-crew',createdAt:new Date(now).toISOString()},
 {id:'crew-calendar',type:'calendar',name:'📅work-calendar',categoryId:'cat-crew',createdAt:new Date(now).toISOString()},
 {id:'crew-roster',type:'roster',name:'👷crew-roster',categoryId:'cat-crew',createdAt:new Date(now).toISOString()},
 ]
@@ -482,24 +472,12 @@ channels: [
 }
 
 function seedCalendarEntries() {
-const today = new Date(); const y = today.getFullYear(); const m = today.getMonth(); const iso = (day) => new Date(y, m, day).toISOString().slice(0,10);
-return [
-{id:'cal-seed-1', projectId:'seed-80-queen-street', projectName:'80 Queen Street', startDate: iso(16), days:3, dates: datesFor(iso(16), 3), technicians:'Felipe, Lionel', tools:'#paint #netting', comment:'North elevation — start with windows, then caulking around balconies.', createdAt: new Date().toISOString()},
-{id:'cal-seed-2', projectId:'seed-sky-tower-facade-clean', projectName:'Sky Tower — Facade Clean', startDate: iso(17), days:2, dates: datesFor(iso(17), 2), technicians:'Mike, Dave', tools:'#sealant', comment:'High-level wash. Confirm access window with building security morning of.', createdAt: new Date().toISOString()},
-];
+return [];
 }
 
 function seedTimesheetEntries() {
-const today = new Date(); const y = today.getFullYear(); const m = today.getMonth(); const iso = (day) => new Date(y, m, day).toISOString().slice(0,10);
-return [
-{id:'ts-seed-1', projectId:'seed-80-queen-street', projectName:'80 Queen Street', workerName:'Felipe', date:iso(14), startTime:'07:00', endTime:'15:30', hours:8.5, description:'Rigged ropes on north elevation, set up exclusion zone on ground level', status:'confirmed', createdAt:new Date().toISOString()},
-{id:'ts-seed-2', projectId:'seed-80-queen-street', projectName:'80 Queen Street', workerName:'Lionel', date:iso(14), startTime:'07:00', endTime:'16:00', hours:9, description:'Rigging north elevation and safety checks with Felipe', status:'confirmed', createdAt:new Date().toISOString()},
-{id:'ts-seed-3', projectId:'seed-80-queen-street', projectName:'80 Queen Street', workerName:'Felipe', date:iso(15), startTime:'07:30', endTime:'15:00', hours:7.5, description:'Caulking around balcony level 4 and 5, waterproofing prep', status:'pending', createdAt:new Date().toISOString()},
-{id:'ts-seed-4', projectId:'seed-sky-tower-facade-clean', projectName:'Sky Tower — Facade Clean', workerName:'Mike', date:iso(15), startTime:'06:00', endTime:'14:00', hours:8, description:'High-level wash section A, west face of tower', status:'pending', createdAt:new Date().toISOString()},
-{id:'ts-seed-5', projectId:'seed-sky-tower-facade-clean', projectName:'Sky Tower — Facade Clean', workerName:'Dave', date:iso(15), startTime:'06:00', endTime:'14:00', hours:8, description:'High-level wash section A with Mike, west face', status:'pending', createdAt:new Date().toISOString()},
-];
+return [];
 }
-
 function useMentions(text, setText, allChannels, currentChannelId, filterToToolsOnly = false) {
 const [open, setOpen] = useState(false); const [query, setQuery] = useState(''); const [pos, setPos] = useState(0); const [activeIdx, setActiveIdx] = useState(0);
 const matches = useMemo(() => {
@@ -741,8 +719,9 @@ if(isIOS) {
 return null;
 }
 
-function App() {
-const [theme, setTheme] = useTheme(); const [data, setData] = useStorage('ral-data-v5', null); const [notes, setNotes] = useStorage('ral-notes', {}); const [incidents, setIncidents] = useStorage('ral-incidents', []); const [calendarEntries, setCalendarEntries] = useStorage('ral-calendar-v2', null); const [crew, setCrew] = useStorage('ral-crew', [{id:'c1',name:'Lionel'},{id:'c2',name:'Felipe'},{id:'c3',name:'Mike'},{id:'c4',name:'Dave'}]); const [timesheets, setTimesheets] = useStorage('ral-timesheets', null); const [activeId, setActiveId] = useState(null); const [activeThreadId, setActiveThreadId] = useState('info'); const [showJobWizard, setShowJobWizard] = useState(false); const [editingJob, setEditingJob] = useState(null); const [jobTargetCategory, setJobTargetCategory] = useState('cat-run'); const [showShare, setShowShare] = useState(false); const [showCategoryModal, setShowCategoryModal] = useState(false); const [editingCategory, setEditingCategory] = useState(null); const [showTypePicker, setShowTypePicker] = useState(null); const [showAddThread, setShowAddThread] = useState(false); const [showIncidentForm, setShowIncidentForm] = useState(false); const [showAddMaterial, setShowAddMaterial] = useState(false); const [bookingModal, setBookingModal] = useState(null); const [sharedChannel, setSharedChannel] = useState(null); const [showTimesheetModal, setShowTimesheetModal] = useState(null); const [draggedCategory, setDraggedCategory] = useState(null);
+function App({company, currentUser, onLogout}) {
+const k = (key) => 'th-co-' + company.id + ':' + key;
+const [theme, setTheme] = useTheme(); const [data, setData] = useStorage(k('data'), null); const [notes, setNotes] = useStorage(k('notes'), {}); const [incidents, setIncidents] = useStorage(k('incidents'), []); const [calendarEntries, setCalendarEntries] = useStorage(k('calendar'), null); const [crew, setCrew] = useStorage(k('crew'), []); const [timesheets, setTimesheets] = useStorage(k('timesheets'), null); const [activeId, setActiveId] = useState(null); const [activeThreadId, setActiveThreadId] = useState('info'); const [showJobWizard, setShowJobWizard] = useState(false); const [editingJob, setEditingJob] = useState(null); const [jobTargetCategory, setJobTargetCategory] = useState('cat-run'); const [showShare, setShowShare] = useState(false); const [showCategoryModal, setShowCategoryModal] = useState(false); const [editingCategory, setEditingCategory] = useState(null); const [showTypePicker, setShowTypePicker] = useState(null); const [showAddThread, setShowAddThread] = useState(false); const [showIncidentForm, setShowIncidentForm] = useState(false); const [showAddMaterial, setShowAddMaterial] = useState(false); const [bookingModal, setBookingModal] = useState(null); const [sharedChannel, setSharedChannel] = useState(null); const [showTimesheetModal, setShowTimesheetModal] = useState(null); const [draggedCategory, setDraggedCategory] = useState(null);
 const [isOnline, setIsOnline] = useState(typeof navigator==='undefined' || navigator.onLine!==false);
 const isMobile = useIsMobile();
 const [drawerOpen, setDrawerOpen] = useState(false);
@@ -802,13 +781,23 @@ return (<div style={s.app}>
 {isMobile && <div style={{...s.backdrop, ...(drawerOpen ? s.backdropOpen : {})}} onClick={() => setDrawerOpen(false)}/>}
 <div style={sidebarStyle}>
   <div style={s.serverHeader}>
-    <div style={s.serverIcon}>RAL</div>
+    {company.logo
+      ? <img src={company.logo} alt="logo" style={{width:36,height:36,borderRadius:8,objectFit:'cover',flexShrink:0,border:'1px solid var(--border)'}}/>
+      : <div style={s.serverIcon}>{(company.name||'?').slice(0,2).toUpperCase()}</div>
+    }
     <div style={s.serverMeta}>
-      <div style={s.serverSmallCap}>Server</div>
-      <div style={s.serverName}>RAL</div>
+      <div style={s.serverName}>{company.name}</div>
+      <div style={s.serverSmallCap}>tradehub server</div>
     </div>
-    <button style={s.themeToggle} onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '🌙' : '☀️'}</button>
+    <button style={s.themeToggle} onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} title="Toggle theme">{theme === 'light' ? '🌙' : '☀️'}</button>
     {isMobile && <button style={{...s.themeToggle, marginLeft:4}} onClick={() => setDrawerOpen(false)} aria-label="Close menu">✕</button>}
+  </div>
+  <div style={{padding:'8px 14px 6px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:8}}>
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontSize:11,fontWeight:600,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{currentUser.name}</div>
+      <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,fontWeight:600,color:'var(--accent-text)',textTransform:'uppercase',letterSpacing:0.14}}>{currentUser.role.replace('_',' ')}</div>
+    </div>
+    <button onClick={onLogout} title="Logout" style={{padding:'4px 8px',background:'var(--bg-raised)',border:'1px solid var(--border)',borderRadius:5,fontSize:10,fontWeight:600,color:'var(--text-muted)',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.2}}>↩ Logout</button>
   </div>
   <div style={s.actionBar}>
     <button style={s.actionBtn} onClick={() => { setEditingJob(null); setJobTargetCategory('cat-run'); setShowJobWizard(true); if(isMobile) setDrawerOpen(false); }}>+ NEW PROJECT</button>
@@ -886,7 +875,302 @@ return (<div style={s.app}>
 </div>);
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+// ── TRADEHUB LOGO COMPONENT ──────────────────────────────────────────────────
+function TradehubLogo({size=64, showText=true}) {
+const sq = size; const fs = Math.round(size * 0.44); const wfs = Math.round(size * 0.4);
+return (
+<div style={{display:'inline-flex',alignItems:'center',gap:Math.round(size*0.22)}}>
+  <div style={{width:sq,height:sq,borderRadius:Math.round(size*0.18),background:'var(--accent)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Inter',sans-serif",fontSize:fs,fontWeight:800,color:'#fff',letterSpacing:-1,boxShadow:'var(--shadow-sm)',flexShrink:0}}>TH</div>
+  {showText && (
+    <div style={{display:'flex',alignItems:'baseline',gap:0,fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:wfs,letterSpacing:-0.5,lineHeight:1}}>
+      <span style={{color:'var(--text)'}}>trade</span><span style={{color:'var(--accent)'}}>hub</span>
+    </div>
+  )}
+</div>
+);
+}
+
+// ── AUTH SCREEN ──────────────────────────────────────────────────────────────
+function AuthScreen({onLoginAdmin, onLoginCompany, companies}) {
+const [mode, setMode] = useState('main'); // 'main' | 'admin' | 'company'
+const [email, setEmail] = useState('');
+const [password, setPassword] = useState('');
+const [selectedCompanyId, setSelectedCompanyId] = useState('');
+const [error, setError] = useState('');
+
+const submitAdmin = () => {
+  setError('');
+  if (email.trim().toLowerCase() === 'admin@tradehub.com' && password === 'admin123') {
+    onLoginAdmin();
+  } else {
+    setError('Invalid admin credentials.');
+  }
+};
+
+const submitCompany = () => {
+  setError('');
+  if (!selectedCompanyId) { setError('Pick a company.'); return; }
+  const company = companies.find(c => c.id === selectedCompanyId);
+  if (!company) { setError('Company not found.'); return; }
+  const user = (company.users || []).find(u => u.email && u.email.toLowerCase() === email.trim().toLowerCase());
+  if (!user) { setError('User not found in this company.'); return; }
+  if ((user.password || '1234') !== password) { setError('Wrong password.'); return; }
+  onLoginCompany(company, user);
+};
+
+const wrap = {minHeight:'100vh',background:'var(--bg)',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'};
+const card = {background:'var(--bg-panel)',border:'1px solid var(--border)',borderRadius:14,padding:'34px 32px',width:'100%',maxWidth:420,boxShadow:'var(--shadow-lg)'};
+const tagline = {fontSize:12,color:'var(--text-dim)',marginTop:6,fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.3};
+
+if (mode === 'main') {
+return (
+<div style={wrap}>
+  <div style={card}>
+    <div style={{display:'flex',justifyContent:'center',marginBottom:6}}><TradehubLogo size={56}/></div>
+    <div style={{textAlign:'center',...tagline,marginBottom:28}}>project manager for trades</div>
+    <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      <button style={{...s.primaryBtn,padding:'14px 18px',fontSize:13,width:'100%'}} onClick={()=>setMode('admin')}>👑 Admin Login</button>
+      <button style={{...s.actionBtn,padding:'14px 18px',fontSize:13}} onClick={()=>setMode('company')}>🏢 Company Login</button>
+    </div>
+    <div style={{textAlign:'center',marginTop:24,fontSize:11,color:'var(--text-faint)',fontFamily:"'JetBrains Mono',monospace",letterSpacing:0.2}}>v1.0 · localStorage demo</div>
+  </div>
+</div>
+);
+}
+
+if (mode === 'admin') {
+return (
+<div style={wrap}>
+  <div style={card}>
+    <div style={{display:'flex',justifyContent:'center',marginBottom:6}}><TradehubLogo size={48}/></div>
+    <div style={{textAlign:'center',...tagline,marginBottom:24}}>admin login</div>
+    <label style={s.label}>Email</label>
+    <input style={s.input} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="admin@tradehub.com" autoFocus/>
+    <label style={s.label}>Password</label>
+    <input style={s.input} type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" onKeyDown={e=>{if(e.key==='Enter')submitAdmin();}}/>
+    {error && <div style={{padding:'8px 12px',background:'var(--danger-bg)',border:'1px solid var(--danger)',borderRadius:6,fontSize:12,color:'var(--danger)',marginBottom:12}}>{error}</div>}
+    <button style={{...s.primaryBtn,width:'100%',padding:'12px 18px',marginBottom:10}} onClick={submitAdmin}>Login as Admin</button>
+    <button style={{...s.cancelBtn,width:'100%'}} onClick={()=>{setMode('main');setError('');setEmail('');setPassword('');}}>← Back</button>
+  </div>
+</div>
+);
+}
+
+// company mode
+return (
+<div style={wrap}>
+  <div style={card}>
+    <div style={{display:'flex',justifyContent:'center',marginBottom:6}}><TradehubLogo size={48}/></div>
+    <div style={{textAlign:'center',...tagline,marginBottom:24}}>company login</div>
+    <label style={s.label}>Company</label>
+    <select style={s.input} value={selectedCompanyId} onChange={e=>setSelectedCompanyId(e.target.value)}>
+      <option value="">— Select your company —</option>
+      {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+    </select>
+    {companies.length === 0 && <div style={{padding:'8px 12px',background:'var(--warn-bg)',border:'1px solid var(--warn)',borderRadius:6,fontSize:12,color:'var(--warn)',marginBottom:12}}>No companies registered yet. Ask your admin to create one.</div>}
+    <label style={s.label}>Email</label>
+    <input style={s.input} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@company.com"/>
+    <label style={s.label}>Password</label>
+    <input style={s.input} type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••" onKeyDown={e=>{if(e.key==='Enter')submitCompany();}}/>
+    {error && <div style={{padding:'8px 12px',background:'var(--danger-bg)',border:'1px solid var(--danger)',borderRadius:6,fontSize:12,color:'var(--danger)',marginBottom:12}}>{error}</div>}
+    <button style={{...s.primaryBtn,width:'100%',padding:'12px 18px',marginBottom:10}} onClick={submitCompany}>Login</button>
+    <button style={{...s.cancelBtn,width:'100%'}} onClick={()=>{setMode('main');setError('');setEmail('');setPassword('');setSelectedCompanyId('');}}>← Back</button>
+  </div>
+</div>
+);
+}
+
+// ── ADMIN PANEL ──────────────────────────────────────────────────────────────
+function AdminPanel({companies, setCompanies, onLogout, onEnterCompany}) {
+const [showNew, setShowNew] = useState(false);
+const [editingCompany, setEditingCompany] = useState(null);
+
+const deleteCompany = (id) => {
+  if (!confirm('Delete this company? All its data will remain in localStorage but will be inaccessible.')) return;
+  setCompanies(prev => prev.filter(c => c.id !== id));
+};
+
+const wrap = {minHeight:'100vh',background:'var(--bg)',padding:'40px 24px'};
+const inner = {maxWidth:880,margin:'0 auto'};
+
+return (
+<div style={wrap}>
+  <div style={inner}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,gap:12,flexWrap:'wrap'}}>
+      <div style={{display:'flex',alignItems:'center',gap:14}}>
+        <TradehubLogo size={44}/>
+        <div>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,fontWeight:600,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.2}}>Admin Panel</div>
+          <div style={{fontSize:18,fontWeight:700,color:'var(--text)'}}>Manage Companies</div>
+        </div>
+      </div>
+      <button style={s.cancelBtn} onClick={onLogout}>↩ Logout</button>
+    </div>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
+      <div style={{fontSize:13,color:'var(--text-dim)'}}>{companies.length} compan{companies.length===1?'y':'ies'} registered</div>
+      <button style={s.primaryBtn} onClick={()=>{setEditingCompany(null);setShowNew(true);}}>+ NEW COMPANY</button>
+    </div>
+    {companies.length === 0 ? (
+      <div style={{background:'var(--bg-panel)',border:'1px dashed var(--border-strong)',borderRadius:12,padding:'48px 24px',textAlign:'center'}}>
+        <div style={{fontSize:42,opacity:0.5,marginBottom:10}}>🏢</div>
+        <div style={{fontSize:14,color:'var(--text-muted)',marginBottom:18}}>No companies yet — create your first one.</div>
+        <button style={s.primaryBtn} onClick={()=>{setEditingCompany(null);setShowNew(true);}}>+ Create Company</button>
+      </div>
+    ) : (
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12}}>
+        {companies.map(c => (
+          <div key={c.id} style={{background:'var(--bg-panel)',border:'1px solid var(--border)',borderRadius:10,padding:'18px 16px',boxShadow:'var(--shadow-sm)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+              {c.logo
+                ? <img src={c.logo} alt="logo" style={{width:44,height:44,borderRadius:8,objectFit:'cover',border:'1px solid var(--border)'}}/>
+                : <div style={{width:44,height:44,borderRadius:8,background:'var(--accent)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:800,color:'#fff'}}>{(c.name||'?').slice(0,2).toUpperCase()}</div>
+              }
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:700,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.name}</div>
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginTop:2}}>{(c.users||[]).length} user{(c.users||[]).length===1?'':'s'}</div>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              <button style={{...s.copyBtn,flex:1}} onClick={()=>onEnterCompany(c)}>↗ Enter</button>
+              <button style={s.copyBtn} onClick={()=>{setEditingCompany(c);setShowNew(true);}}>✎</button>
+              <button style={{...s.copyBtn,color:'var(--danger)',borderColor:'var(--danger)'}} onClick={()=>deleteCompany(c.id)}>🗑</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+  {showNew && <CompanyEditModal onClose={()=>{setShowNew(false);setEditingCompany(null);}} onSave={(co)=>{
+    setCompanies(prev => {
+      const idx = prev.findIndex(p => p.id === co.id);
+      if (idx >= 0) { const next = [...prev]; next[idx] = co; return next; }
+      return [...prev, co];
+    });
+    setShowNew(false); setEditingCompany(null);
+  }} editing={editingCompany}/>}
+</div>
+);
+}
+
+// ── CREATE/EDIT COMPANY MODAL ────────────────────────────────────────────────
+function CompanyEditModal({onClose, onSave, editing}) {
+const [name, setName] = useState(editing?.name || '');
+const [logo, setLogo] = useState(editing?.logo || '');
+const [managerName, setManagerName] = useState(editing?.users?.[0]?.name || '');
+const [managerEmail, setManagerEmail] = useState(editing?.users?.[0]?.email || '');
+const [managerPassword, setManagerPassword] = useState(editing?.users?.[0]?.password || '1234');
+
+const onLogoUpload = (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  if (file.size > 500 * 1024) { alert('Logo too big. Use an image under 500 KB.'); return; }
+  const reader = new FileReader();
+  reader.onload = (ev) => setLogo(ev.target.result);
+  reader.readAsDataURL(file);
+};
+
+const save = () => {
+  if (!name.trim()) return alert('Company name required.');
+  if (!editing && (!managerName.trim() || !managerEmail.trim())) return alert('Manager name and email required for the first user.');
+  const id = editing?.id || ('co-' + Date.now().toString(36));
+  const users = editing?.users && editing.users.length
+    ? editing.users.map((u,i) => i === 0 ? {...u, name: managerName.trim()||u.name, email: managerEmail.trim()||u.email, password: managerPassword||u.password||'1234'} : u)
+    : [{id:'u-'+Date.now().toString(36), name:managerName.trim(), email:managerEmail.trim().toLowerCase(), password:managerPassword||'1234', role:'manager'}];
+  onSave({id, name:name.trim(), logo, users, createdAt: editing?.createdAt || new Date().toISOString()});
+};
+
+return (
+<div style={s.overlay} onClick={onClose}>
+  <div style={s.modal} onClick={e=>e.stopPropagation()}>
+    <div style={s.modalHeader}>
+      <div>
+        <div style={s.modalKicker}>{editing ? 'Edit' : 'New'} · Company</div>
+        <div style={s.modalTitle}>{editing ? 'Edit company' : 'Create new company'}</div>
+      </div>
+      <button style={s.closeBtn} onClick={onClose}>×</button>
+    </div>
+    <div style={s.modalBody}>
+      <label style={s.label}>Company name *</label>
+      <input style={s.input} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. RAL Solutions" autoFocus/>
+      <label style={s.label}>Company logo (optional, &lt; 500 KB)</label>
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
+        {logo
+          ? <img src={logo} alt="logo preview" style={{width:56,height:56,borderRadius:8,objectFit:'cover',border:'1px solid var(--border)'}}/>
+          : <div style={{width:56,height:56,borderRadius:8,background:'var(--bg-raised)',border:'1px dashed var(--border-strong)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-faint)',fontSize:18}}>🏢</div>
+        }
+        <label style={{...s.cancelBtn,cursor:'pointer',display:'inline-block'}}>
+          {logo ? 'Change' : 'Upload logo'}
+          <input type="file" accept="image/*" onChange={onLogoUpload} style={{display:'none'}}/>
+        </label>
+        {logo && <button style={{...s.cancelBtn,color:'var(--danger)',borderColor:'var(--danger)'}} onClick={()=>setLogo('')}>Remove</button>}
+      </div>
+      {!editing && (
+        <>
+          <div style={{padding:'10px 12px',background:'var(--accent-bg)',border:'1px solid var(--accent)',borderRadius:7,marginBottom:14,fontSize:12,color:'var(--accent-text)'}}>
+            👑 The first user is automatically the company Manager. You can add more users later from the company.
+          </div>
+          <label style={s.label}>Manager name *</label>
+          <input style={s.input} value={managerName} onChange={e=>setManagerName(e.target.value)} placeholder="e.g. Lionel"/>
+          <label style={s.label}>Manager email *</label>
+          <input style={s.input} type="email" value={managerEmail} onChange={e=>setManagerEmail(e.target.value)} placeholder="lionel@ralsolutions.co.nz"/>
+          <label style={s.label}>Manager password (default: 1234)</label>
+          <input style={s.input} value={managerPassword} onChange={e=>setManagerPassword(e.target.value)} placeholder="1234"/>
+        </>
+      )}
+    </div>
+    <div style={s.modalFooter}>
+      <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
+      <button style={s.primaryBtn} onClick={save}>{editing ? 'Save' : 'Create company'}</button>
+    </div>
+  </div>
+</div>
+);
+}
+
+// ── ROOT APP ─────────────────────────────────────────────────────────────────
+function RootApp() {
+const [companies, setCompanies] = useStorage('th-companies', []);
+const [session, setSession] = useStorage('th-session', null); // {kind:'admin'} | {kind:'company',companyId,userId}
+
+// Theme has to live at root level so login screens get correct theme
+useTheme();
+
+const handleLoginAdmin = () => setSession({kind:'admin'});
+const handleLoginCompany = (company, user) => setSession({kind:'company', companyId: company.id, userId: user.id});
+const handleLogout = () => setSession(null);
+const handleEnterCompany = (company) => {
+  // Admin can enter any company as a "super-manager" (read-only-ish for now)
+  const adminUser = {id:'admin-shadow', name:'Admin', email:'admin@tradehub.com', role:'manager'};
+  setSession({kind:'company', companyId: company.id, userId: adminUser.id, _adminShadow:true});
+};
+
+if (!session) {
+  return <AuthScreen onLoginAdmin={handleLoginAdmin} onLoginCompany={handleLoginCompany} companies={companies}/>;
+}
+
+if (session.kind === 'admin') {
+  return <AdminPanel companies={companies} setCompanies={setCompanies} onLogout={handleLogout} onEnterCompany={handleEnterCompany}/>;
+}
+
+// Company session
+const company = companies.find(c => c.id === session.companyId);
+if (!company) {
+  // Company was deleted while session active
+  setTimeout(() => setSession(null), 0);
+  return null;
+}
+let currentUser = (company.users || []).find(u => u.id === session.userId);
+if (!currentUser && session._adminShadow) {
+  currentUser = {id:'admin-shadow', name:'Admin (super)', email:'admin@tradehub.com', role:'manager'};
+}
+if (!currentUser) {
+  setTimeout(() => setSession(null), 0);
+  return null;
+}
+
+return <App company={company} currentUser={currentUser} onLogout={handleLogout}/>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<RootApp/>);
 </script>
 
 <script>
