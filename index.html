@@ -54,6 +54,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px;}
+input[type="date"]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:0.6;filter:invert(0.4);transition:opacity 0.15s;}
+input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1;}
+:root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) opacity(0.7);}
+input[type="date"],input[type="time"]{color-scheme:light;cursor:pointer;}
+:root[data-theme="dark"] input[type="date"],:root[data-theme="dark"] input[type="time"]{color-scheme:dark;}
 input,textarea,select,button{font-family:'Inter',sans-serif;}
 input:focus,textarea:focus,select:focus{border-color:var(--accent)!important;}
 .mention{color:var(--accent);background:var(--accent-bg);padding:1px 6px;border-radius:4px;font-weight:600;cursor:pointer;text-decoration:none;font-size:0.95em;}
@@ -145,7 +150,6 @@ const DEFAULT_THREADS = [
 {id:'timesheet',label:'Timesheet',icon:'⏱️',fixed:true},
 {id:'incidents',label:'Incidents',icon:'⚠️',fixed:true},
 {id:'rams',label:'RAMS',icon:'📋',fixed:true},
-{id:'survey',label:'Survey',icon:'🔍',fixed:true},
 ];
 const RAMS_URL = 'https://rams-beta.vercel.app/';
 const SURVEY_URL = 'https://quick-survey-murex.vercel.app/';
@@ -458,6 +462,7 @@ categories: [
 {id:'cat-incidents',name:'Incident Reports',emoji:'⚠️',system:'incidents',collapsed:false,order:3},
 {id:'cat-tools',name:'Tools & Materials',emoji:'🧰',system:null,collapsed:false,order:4},
 {id:'cat-crew',name:'Crew',emoji:'👥',system:null,collapsed:false,order:5},
+{id:'cat-settings',name:'Settings',emoji:'⚙️',system:'settings',collapsed:false,order:6,managerOnly:true},
 ],
 channels: [
 {id:'ts-overview',type:'ts-overview',name:'worked-hours',categoryId:'cat-timesheets',createdAt:new Date(now).toISOString()},
@@ -466,7 +471,8 @@ channels: [
 {id:'inc-accident',type:'incidents-bin',incidentType:'accident',name:'accident',categoryId:'cat-incidents',createdAt:new Date(now).toISOString()},
 {id:'crew-announcements',type:'plain',name:'📢announcements',categoryId:'cat-crew',createdAt:new Date(now).toISOString()},
 {id:'crew-calendar',type:'calendar',name:'📅work-calendar',categoryId:'cat-crew',createdAt:new Date(now).toISOString()},
-{id:'crew-roster',type:'roster',name:'👷crew-roster',categoryId:'cat-crew',createdAt:new Date(now).toISOString()},
+{id:'settings-users',type:'users',name:'👥users',categoryId:'cat-settings',createdAt:new Date(now).toISOString()},
+{id:'settings-company',type:'company-info',name:'🏢company-info',categoryId:'cat-settings',createdAt:new Date(now).toISOString()},
 ]
 };
 }
@@ -504,10 +510,10 @@ return (<div key={c.id} style={{...s.mentionItem, ...(isActive ? s.mentionItemAc
 }
 
 function JobWizard({onClose, onSave, editing}) {
-const blank = {id:'',type:'job',status:'running',categoryId:'cat-run',customThreads:[], name:'',address:'',parking:'',assemblingPoint:'',toilet:'',keyLocation:'',firstAid:'',lunchroom:'', teamLeader:'',clientName:'',clientMobile:'',whatsapp:'',surveyLink:'',startDate:'',createdAt:''};
+const blank = {id:'',type:'job',status:'running',categoryId:'cat-run',customThreads:[], name:'',address:'',parking:'',assemblingPoint:'',toilet:'',keyLocation:'',firstAid:'',lunchroom:'', teamLeader:'',clientName:'',clientMobile:'',whatsapp:'',surveyLink:'',startDate:'',anchorInspectionDue:'',createdAt:''};
 const [step, setStep] = useState(0); const [data, setData] = useState(editing || blank); const set = k => e => setData(p => ({...p, [k]: e.target.value}));
 const steps = [
-{title:'Project info', fields:(<><label style={s.label}>Project name *</label><input style={s.input} value={data.name} onChange={set('name')} placeholder="e.g. 80 Queen Street" autoFocus/><div style={s.row2}><div><label style={s.label}>Start date</label><input style={s.input} type="date" value={data.startDate} onChange={set('startDate')}/></div><div><label style={s.label}>Team leader</label><input style={s.input} value={data.teamLeader} onChange={set('teamLeader')} placeholder="Name"/></div></div><label style={s.label}>Address / location</label><input style={s.input} value={data.address} onChange={set('address')} placeholder="Full address"/></>)},
+{title:'Project info', fields:(<><label style={s.label}>Project name *</label><input style={s.input} value={data.name} onChange={set('name')} placeholder="e.g. 80 Queen Street" autoFocus/><div style={s.row2}><div><label style={s.label}>Start date</label><input style={s.input} type="date" value={data.startDate} onChange={set('startDate')}/></div><div><label style={s.label}>Team leader</label><input style={s.input} value={data.teamLeader} onChange={set('teamLeader')} placeholder="Name"/></div></div><label style={s.label}>Address / location</label><input style={s.input} value={data.address} onChange={set('address')} placeholder="Full address"/><label style={s.label}>⚓ Anchor Inspection Due Date</label><input style={s.input} type="date" value={data.anchorInspectionDue} onChange={set('anchorInspectionDue')}/></>)},
 {title:'Site access', fields:(<><label style={s.label}>🚌 Parking</label><input style={s.input} value={data.parking} onChange={set('parking')}/><label style={s.label}>👥 Assembling point</label><input style={s.input} value={data.assemblingPoint} onChange={set('assemblingPoint')}/><label style={s.label}>🔓 Lock pad code / key's location</label><input style={s.input} value={data.keyLocation} onChange={set('keyLocation')}/></>)},
 {title:'Site amenities', fields:(<><label style={s.label}>🚻 Toilet</label><input style={s.input} value={data.toilet} onChange={set('toilet')}/><label style={s.label}>🩹 First aid kit</label><input style={s.input} value={data.firstAid} onChange={set('firstAid')}/><label style={s.label}>🍽️ Lunchroom</label><input style={s.input} value={data.lunchroom} onChange={set('lunchroom')}/></>)},
 {title:'Client', fields:(<><label style={s.label}>Client name</label><input style={s.input} value={data.clientName} onChange={set('clientName')}/><label style={s.label}>Client mobile</label><input style={s.input} value={data.clientMobile} onChange={set('clientMobile')}/></>)},
@@ -549,20 +555,38 @@ const save = () => { if(!name.trim()) return; onSave({id:'m-'+Date.now().toStrin
 return (<div style={s.overlay} onClick={onClose}><div style={{...s.modal,...s.modalSm}} onClick={e=>e.stopPropagation()}><div style={s.modalHeader}><div><div style={s.modalKicker}>New · Material</div><div style={s.modalTitle}>Add item</div></div><button style={s.closeBtn} onClick={onClose}>×</button></div><div style={s.modalBody}><label style={s.label}>Item *</label><input style={s.input} value={name} onChange={e=>setName(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter'&&name.trim())save();}}/><label style={s.label}>Quantity (optional)</label><input style={s.input} value={qty} onChange={e=>setQty(e.target.value)} placeholder="e.g. 4 × 10L"/></div><div style={s.modalFooter}><button style={s.cancelBtn} onClick={onClose}>Cancel</button><button style={{...s.primaryBtn, opacity:name.trim()?1:0.5}} disabled={!name.trim()} onClick={save}>Add item</button></div></div></div>);
 }
 
-function TimesheetEntryModal({onClose, onSave, crew, projectId, projectName, editing, timesheets, onAddCrew}) {
-const projectWorkers = useMemo(() => { const names = new Set((timesheets||[]).filter(t=>t.projectId===projectId).map(t=>t.workerName)); crew.forEach(c => names.add(c.name)); return [...names].sort(); }, [timesheets, projectId, crew]);
-const [workerName, setWorkerName] = useState(editing?.workerName || ''); const [date, setDate] = useState(editing?.date || todayISO()); const [startTime, setStartTime] = useState(editing?.startTime || '07:00'); const [endTime, setEndTime] = useState(editing?.endTime || '15:30'); const [description, setDescription] = useState(editing?.description || ''); const [addingNew, setAddingNew] = useState(false); const [newName, setNewName] = useState('');
+function TimesheetEntryModal({onClose, onSave, crew, projectId, projectName, editing, timesheets, onAddCrew, currentUser, company}) {
+const isCrew = currentUser?.role === 'crew';
+const companyUsers = (company?.users || []).map(u => u.name);
+const projectWorkers = useMemo(() => {
+  const names = new Set((timesheets||[]).filter(t=>t.projectId===projectId).map(t=>t.workerName));
+  companyUsers.forEach(n => names.add(n));
+  crew.forEach(c => names.add(c.name));
+  return [...names].sort();
+}, [timesheets, projectId, crew, companyUsers]);
+// For crew: lock worker to themselves
+const initialWorker = editing?.workerName || (isCrew ? currentUser.name : '');
+const [workerName, setWorkerName] = useState(initialWorker);
+const [date, setDate] = useState(editing?.date || todayISO()); const [startTime, setStartTime] = useState(editing?.startTime || '07:00'); const [endTime, setEndTime] = useState(editing?.endTime || '15:30'); const [description, setDescription] = useState(editing?.description || '');
 const hours = calcHours(startTime, endTime); const descOk = description.trim().length >= 20;
 const save = () => { if(!workerName) return alert('Select a worker.'); if(!descOk) return alert('Description must be at least 20 characters.'); onSave({ id: editing?.id || 'ts-'+Date.now().toString(36), projectId, projectName, workerName, date, startTime, endTime, hours, description: description.trim(), status: editing?.status || 'pending', createdAt: editing?.createdAt || new Date().toISOString() }); onClose(); };
-const handleAddNew = () => { if(!newName.trim()) return; onAddCrew({id:'cr-'+Date.now().toString(36), name:newName.trim()}); setWorkerName(newName.trim()); setNewName(''); setAddingNew(false); };
-return (<div style={s.overlay} onClick={onClose}><div style={s.modal} onClick={e=>e.stopPropagation()}><div style={s.modalHeader}><div><div style={s.modalKicker}>{editing?'Edit':'New'} · Timesheet entry</div><div style={s.modalTitle}>{projectName}</div></div><button style={s.closeBtn} onClick={onClose}>×</button></div><div style={s.modalBody}><label style={s.label}>Worker *</label>{addingNew ? (<div style={{display:'flex',gap:8,marginBottom:16}}><input style={{...s.input,marginBottom:0,flex:1}} value={newName} onChange={e=>setNewName(e.target.value)} placeholder="New crew member name" autoFocus onKeyDown={e=>{if(e.key==='Enter')handleAddNew();}}/><button style={s.primaryBtn} onClick={handleAddNew}>Add</button><button style={s.cancelBtn} onClick={()=>setAddingNew(false)}>✕</button></div>) : (<div style={{display:'flex',gap:8,marginBottom:16}}><select style={{...s.input,marginBottom:0,flex:1}} value={workerName} onChange={e=>setWorkerName(e.target.value)}><option value="">— Select worker —</option>{projectWorkers.map(n => <option key={n} value={n}>{n}</option>)}</select><button style={s.cancelBtn} onClick={()=>setAddingNew(true)}>+ New</button></div>)}<label style={s.label}>Date *</label><input style={s.input} type="date" value={date} onChange={e=>setDate(e.target.value)}/><div style={s.row2}><div><label style={s.label}>Start time *</label><input style={s.input} type="time" value={startTime} onChange={e=>setStartTime(e.target.value)}/></div><div><label style={s.label}>End time *</label><input style={s.input} type="time" value={endTime} onChange={e=>setEndTime(e.target.value)}/></div></div><div style={{fontSize:13,color:'var(--accent-text)',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",marginTop:-8,marginBottom:16}}>= {hours} hours</div><label style={s.label}>Description * <span style={{fontWeight:400,textTransform:'none'}}>({description.trim().length}/20 min chars)</span></label><textarea style={{...s.textarea, borderColor: description.trim().length > 0 && !descOk ? 'var(--warn)' : undefined}} value={description} onChange={e=>setDescription(e.target.value)} rows={4} placeholder="Describe work done (minimum 20 characters)..."/></div><div style={s.modalFooter}><button style={s.cancelBtn} onClick={onClose}>Cancel</button><button style={{...s.primaryBtn, opacity:(workerName&&descOk)?1:0.5}} onClick={save}>{editing?'Save':'Add entry'}</button></div></div></div>);
+return (<div style={s.overlay} onClick={onClose}><div style={s.modal} onClick={e=>e.stopPropagation()}><div style={s.modalHeader}><div><div style={s.modalKicker}>{editing?'Edit':'New'} · Timesheet entry</div><div style={s.modalTitle}>{projectName}</div></div><button style={s.closeBtn} onClick={onClose}>×</button></div><div style={s.modalBody}><label style={s.label}>Worker *</label>{isCrew
+  ? <input style={{...s.input,opacity:0.7,cursor:'not-allowed'}} value={workerName} disabled/>
+  : <select style={s.input} value={workerName} onChange={e=>setWorkerName(e.target.value)}><option value="">— Select worker —</option>{projectWorkers.map(n => <option key={n} value={n}>{n}</option>)}</select>
+}<label style={s.label}>Date *</label><input style={s.input} type="date" value={date} onChange={e=>setDate(e.target.value)}/><div style={s.row2}><div><label style={s.label}>Start time *</label><input style={s.input} type="time" value={startTime} onChange={e=>setStartTime(e.target.value)}/></div><div><label style={s.label}>End time *</label><input style={s.input} type="time" value={endTime} onChange={e=>setEndTime(e.target.value)}/></div></div><div style={{fontSize:13,color:'var(--accent-text)',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",marginTop:-8,marginBottom:16}}>= {hours} hours</div><label style={s.label}>Description * <span style={{fontWeight:400,textTransform:'none'}}>({description.trim().length}/20 min chars)</span></label><textarea style={{...s.textarea, borderColor: description.trim().length > 0 && !descOk ? 'var(--warn)' : undefined}} value={description} onChange={e=>setDescription(e.target.value)} rows={4} placeholder="Describe work done (minimum 20 characters)..."/></div><div style={s.modalFooter}><button style={s.cancelBtn} onClick={onClose}>Cancel</button><button style={{...s.primaryBtn, opacity:(workerName&&descOk)?1:0.5}} onClick={save}>{editing?'Save':'Add entry'}</button></div></div></div>);
 }
 
-function ProjectTimesheetView({channel, timesheets, onAdd, onConfirm, onDelete, onBulkConfirm}) {
-const entries = useMemo(() => (timesheets||[]).filter(t=>t.projectId===channel.id).sort((a,b)=> b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime)), [timesheets, channel.id]);
+function ProjectTimesheetView({channel, timesheets, onAdd, onConfirm, onDelete, onBulkConfirm, currentUser}) {
+const isCrew = currentUser?.role === 'crew';
+const canConfirm = currentUser?.role === 'manager' || currentUser?.role === 'team_leader';
+const entries = useMemo(() => {
+  let list = (timesheets||[]).filter(t=>t.projectId===channel.id);
+  if (isCrew) list = list.filter(t => t.workerName === currentUser.name);
+  return list.sort((a,b)=> b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
+}, [timesheets, channel.id, isCrew, currentUser]);
 const totalHours = entries.reduce((s,e)=>s+e.hours, 0); const confirmedHours = entries.filter(e=>e.status==='confirmed').reduce((s,e)=>s+e.hours, 0); const pendingCount = entries.filter(e=>e.status==='pending').length;
 const grouped = useMemo(() => { const map = {}; entries.forEach(e => { (map[e.date] = map[e.date] || []).push(e); }); return Object.entries(map).sort((a,b)=>b[0].localeCompare(a[0])); }, [entries]);
-return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}><div style={s.tsSummary}><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Total hours</div><div style={s.tsSummaryValue}>{totalHours.toFixed(1)}<span style={s.tsSummaryUnit}>hrs</span></div></div><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Confirmed</div><div style={{...s.tsSummaryValue,color:'var(--success)'}}>{confirmedHours.toFixed(1)}<span style={s.tsSummaryUnit}>hrs</span></div></div><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Pending</div><div style={{...s.tsSummaryValue,color:'var(--warn)'}}>{pendingCount}<span style={s.tsSummaryUnit}>entries</span></div></div><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Entries</div><div style={s.tsSummaryValue}>{entries.length}</div></div></div><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,gap:8,flexWrap:'wrap'}}><div style={{fontSize:13,color:'var(--text-dim)'}}>Team leader confirms entries after review.</div><div style={{display:'flex',gap:6}}>{pendingCount > 0 && <button style={{...s.copyBtn, color:'var(--success)',borderColor:'var(--success)'}} onClick={onBulkConfirm}>✓ Confirm all pending</button>}<button style={s.primaryBtn} onClick={onAdd}>+ Add entry</button></div></div><div style={{flex:1,overflowY:'auto'}}>{entries.length === 0 ? <div style={{...s.empty,height:'60%'}}><span style={s.emptyIcon}>⏱️</span><span style={s.emptyText}>No timesheet entries yet</span></div> : grouped.map(([date, dayEntries]) => (<div key={date}><div style={s.tsDateGroup}>{formatDate(date)} · {dayEntries.reduce((s,e)=>s+e.hours,0).toFixed(1)} hrs</div>{dayEntries.map(e => (<div key={e.id} style={s.tsRow}><div style={s.tsWorker}>👷 {e.workerName}</div><div style={s.tsTime}>{e.startTime} → {e.endTime}</div><div style={s.tsHours}>{e.hours}h</div><div style={s.tsDesc}>{e.description}</div><span style={{...s.tsStatus, ...(e.status==='confirmed'?s.tsConfirmed:s.tsPending)}} onClick={()=>{if(e.status==='pending') onConfirm(e.id);}}>{e.status==='confirmed'?'✓ Confirmed':'⏳ Pending'}</span><button onClick={()=>onDelete(e.id)} style={{background:'none',border:'none',color:'var(--text-faint)',cursor:'pointer',fontSize:14,padding:'0 4px'}}>×</button></div>))}</div>))}</div></div>);
+return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}><div style={s.tsSummary}><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>{isCrew ? 'Your hours' : 'Total hours'}</div><div style={s.tsSummaryValue}>{totalHours.toFixed(1)}<span style={s.tsSummaryUnit}>hrs</span></div></div><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Confirmed</div><div style={{...s.tsSummaryValue,color:'var(--success)'}}>{confirmedHours.toFixed(1)}<span style={s.tsSummaryUnit}>hrs</span></div></div><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Pending</div><div style={{...s.tsSummaryValue,color:'var(--warn)'}}>{pendingCount}<span style={s.tsSummaryUnit}>entries</span></div></div><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Entries</div><div style={s.tsSummaryValue}>{entries.length}</div></div></div><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,gap:8,flexWrap:'wrap'}}><div style={{fontSize:13,color:'var(--text-dim)'}}>{isCrew ? 'Your hours on this project. Manager confirms after review.' : 'Team leader confirms entries after review.'}</div><div style={{display:'flex',gap:6}}>{canConfirm && pendingCount > 0 && <button style={{...s.copyBtn, color:'var(--success)',borderColor:'var(--success)'}} onClick={onBulkConfirm}>✓ Confirm all pending</button>}<button style={s.primaryBtn} onClick={onAdd}>+ Add entry</button></div></div><div style={{flex:1,overflowY:'auto'}}>{entries.length === 0 ? <div style={{...s.empty,height:'60%'}}><span style={s.emptyIcon}>⏱️</span><span style={s.emptyText}>No timesheet entries yet</span></div> : grouped.map(([date, dayEntries]) => (<div key={date}><div style={s.tsDateGroup}>{formatDate(date)} · {dayEntries.reduce((s,e)=>s+e.hours,0).toFixed(1)} hrs</div>{dayEntries.map(e => { const canEditOwn = !isCrew || e.workerName === currentUser.name; return (<div key={e.id} style={s.tsRow}><div style={s.tsWorker}>👷 {e.workerName}</div><div style={s.tsTime}>{e.startTime} → {e.endTime}</div><div style={s.tsHours}>{e.hours}h</div><div style={s.tsDesc}>{e.description}</div><span style={{...s.tsStatus, ...(e.status==='confirmed'?s.tsConfirmed:s.tsPending), cursor: canConfirm && e.status==='pending' ? 'pointer' : 'default'}} onClick={()=>{if(canConfirm && e.status==='pending') onConfirm(e.id);}}>{e.status==='confirmed'?'✓ Confirmed':'⏳ Pending'}</span>{canEditOwn && e.status === 'pending' && <button onClick={()=>onDelete(e.id)} style={{background:'none',border:'none',color:'var(--text-faint)',cursor:'pointer',fontSize:14,padding:'0 4px'}}>×</button>}</div>); })}</div>))}</div></div>);
 }
 
 function TimesheetOverviewView({timesheets, crew, allJobs}) {
@@ -586,14 +610,120 @@ const [newName, setNewName] = useState(''); const add = () => { if(!newName.trim
 return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:8}}><div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:2}}>{crew.length} crew member{crew.length===1?'':'s'}</div><div style={{fontSize:13,color:'var(--text-dim)'}}>Manage your team. Names appear in timesheet dropdowns.</div></div></div><div style={{display:'flex',gap:8,marginBottom:16}}><input style={{...s.input,marginBottom:0,flex:1}} value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Add crew member..." onKeyDown={e=>{if(e.key==='Enter')add();}}/><button style={s.primaryBtn} onClick={add}>+ Add</button></div><div style={{flex:1,overflowY:'auto'}}>{crew.length === 0 ? <div style={{...s.empty,height:'50%'}}><span style={s.emptyIcon}>👥</span><span style={s.emptyText}>No crew yet</span></div> : crew.map(c => (<div key={c.id} style={s.crewRow}><span style={{fontSize:15,flexShrink:0}}>👷</span><span style={s.crewName}>{c.name}</span><button style={s.crewRemove} onClick={()=>{if(confirm(`Remove ${c.name} from crew?`)) onRemove(c.id);}}>×</button></div>))}</div></div>);
 }
 
-function CalendarBookingModal({onClose, onSave, jobChannels, allChannels, getCategory, editing, defaultDate}) {
-const [projectId, setProjectId] = useState(editing?.projectId || jobChannels[0]?.id || ''); const [startDate, setStartDate] = useState(editing?.startDate || defaultDate || todayISO()); const [days, setDays] = useState(editing?.days || 1); const [technicians, setTechnicians] = useState(editing?.technicians || ''); const [tools, setTools] = useState(editing?.tools || ''); const [comment, setComment] = useState(editing?.comment || '');
-const toolsRef = useRef(null); const commentRef = useRef(null);
-const toolsMentions = useMentions(tools, setTools, allChannels, null, true);
+function CalendarBookingModal({onClose, onSave, jobChannels, allChannels, getCategory, editing, defaultDate, company}) {
+const [projectId, setProjectId] = useState(editing?.projectId || jobChannels[0]?.id || '');
+const [startDate, setStartDate] = useState(editing?.startDate || defaultDate || todayISO());
+const [days, setDays] = useState(editing?.days || 1);
+const [comment, setComment] = useState(editing?.comment || '');
+
+// Initialize selected technicians from existing string (split by comma)
+const [selectedTechs, setSelectedTechs] = useState(() => {
+  if (editing?.technicians) {
+    return editing.technicians.split(',').map(t => t.trim()).filter(Boolean);
+  }
+  return [];
+});
+// Initialize selected tools from existing #mentions or comma-separated names
+const [selectedTools, setSelectedTools] = useState(() => {
+  if (editing?.tools) {
+    const matches = editing.tools.match(/#[\w-]+/g);
+    if (matches) return matches.map(m => m.slice(1));
+    return editing.tools.split(',').map(t => t.trim()).filter(Boolean);
+  }
+  return [];
+});
+
+const availableTechs = useMemo(() => (company?.users || []).map(u => u.name), [company]);
+const availableTools = useMemo(() => allChannels.filter(c => c.categoryId === 'cat-tools' && c.type === 'materials'), [allChannels]);
+
+const toggleTech = (name) => setSelectedTechs(prev => prev.includes(name) ? prev.filter(t => t !== name) : [...prev, name]);
+const toggleTool = (slug) => setSelectedTools(prev => prev.includes(slug) ? prev.filter(t => t !== slug) : [...prev, slug]);
+
+const commentRef = useRef(null);
 const commentMentions = useMentions(comment, setComment, allChannels, null, false);
 const endDate = useMemo(() => addDays(startDate, Math.max(0, days-1)), [startDate, days]);
-const save = () => { const project = jobChannels.find(c => c.id === projectId); if(!project) return alert('Pick a project.'); const d = parseInt(days); if(!d || d < 1) return alert('Days must be at least 1.'); onSave({ id: editing?.id || 'cal-'+Date.now().toString(36), projectId, projectName: project.name, colorId: project.colorId, startDate, days: d, dates: datesFor(startDate, d), technicians, tools, comment, createdAt: editing?.createdAt || new Date().toISOString() }); onClose(); };
-return (<div style={s.overlay} onClick={onClose}><div style={s.modal} onClick={e=>e.stopPropagation()}><div style={s.modalHeader}><div><div style={s.modalKicker}>{editing ? 'Edit' : 'New'} · Schedule entry</div><div style={s.modalTitle}>{editing ? 'Edit booking' : 'Schedule a job'}</div></div><button style={s.closeBtn} onClick={onClose}>×</button></div><div style={s.modalBody}><label style={s.label}>Project *</label><select style={s.input} value={projectId} onChange={e=>setProjectId(e.target.value)}>{jobChannels.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><div style={s.row2}><div><label style={s.label}>Start date *</label><input style={s.input} type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/></div><div><label style={s.label}>Working days *</label><input style={s.input} type="number" min="1" max="60" value={days} onChange={e=>setDays(parseInt(e.target.value)||1)}/></div></div><div style={{fontSize:11,color:'var(--text-dim)',marginTop:-10,marginBottom:16,fontFamily:"'JetBrains Mono',monospace"}}>{days > 1 ? `${formatShortDate(startDate)} → ${formatShortDate(endDate)} · ${days} days` : `${formatShortDate(startDate)} · 1 day`}</div><label style={s.label}>Technicians involved</label><input style={s.input} value={technicians} onChange={e=>setTechnicians(e.target.value)} placeholder="Felipe, Lionel"/><label style={s.label}>Tools / materials needed</label><div style={s.noteInputWrap}><MentionDropdown mentions={toolsMentions} inputRef={toolsRef} getCategory={getCategory} dropUp={false}/><input ref={toolsRef} style={s.input} value={tools} onChange={(e)=>toolsMentions.handleChange(e)} onKeyDown={(e)=>toolsMentions.handleKeyDown(e, toolsRef)} placeholder="Type # to link tools (🎨paint, 🥅netting, 🔫sealant)"/></div><label style={s.label}>Comment</label><div style={s.noteInputWrap}><MentionDropdown mentions={commentMentions} inputRef={commentRef} getCategory={getCategory} dropUp={true}/><textarea ref={commentRef} style={s.textarea} value={comment} onChange={(e)=>commentMentions.handleChange(e)} onKeyDown={(e)=>commentMentions.handleKeyDown(e, commentRef)} placeholder="Scope of work, access notes, client requests..." rows={4}/></div></div><div style={s.modalFooter}><button style={s.cancelBtn} onClick={onClose}>Cancel</button><button style={s.primaryBtn} onClick={save}>{editing ? 'Save' : 'Add booking'}</button></div></div></div>);
+
+const save = () => {
+  const project = jobChannels.find(c => c.id === projectId);
+  if(!project) return alert('Pick a project.');
+  const d = parseInt(days);
+  if(!d || d < 1) return alert('Days must be at least 1.');
+  const technicians = selectedTechs.join(', ');
+  const tools = selectedTools.map(s => '#' + s).join(' ');
+  onSave({
+    id: editing?.id || 'cal-'+Date.now().toString(36),
+    projectId, projectName: project.name, colorId: project.colorId,
+    startDate, days: d, dates: datesFor(startDate, d),
+    technicians, tools, comment,
+    createdAt: editing?.createdAt || new Date().toISOString()
+  });
+  onClose();
+};
+
+const chip = (label, selected, onClick) => (
+  <button type="button" onClick={onClick} style={{
+    padding:'6px 12px',borderRadius:16,fontSize:12,fontWeight:600,cursor:'pointer',
+    background: selected ? 'var(--accent)' : 'var(--bg-raised)',
+    color: selected ? '#fff' : 'var(--text-muted)',
+    border: '1px solid ' + (selected ? 'var(--accent)' : 'var(--border)'),
+    transition:'all 0.12s'
+  }}>{selected ? '✓ ' : ''}{label}</button>
+);
+
+return (<div style={s.overlay} onClick={onClose}>
+  <div style={s.modal} onClick={e=>e.stopPropagation()}>
+    <div style={s.modalHeader}>
+      <div>
+        <div style={s.modalKicker}>{editing ? 'Edit' : 'New'} · Schedule entry</div>
+        <div style={s.modalTitle}>{editing ? 'Edit booking' : 'Schedule a job'}</div>
+      </div>
+      <button style={s.closeBtn} onClick={onClose}>×</button>
+    </div>
+    <div style={s.modalBody}>
+      <label style={s.label}>Project *</label>
+      <select style={s.input} value={projectId} onChange={e=>setProjectId(e.target.value)}>
+        {jobChannels.length === 0 && <option value="">— No projects available —</option>}
+        {jobChannels.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+      <div style={s.row2}>
+        <div>
+          <label style={s.label}>Start date *</label>
+          <input style={s.input} type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/>
+        </div>
+        <div>
+          <label style={s.label}>Working days *</label>
+          <input style={s.input} type="number" min="1" max="60" value={days} onChange={e=>setDays(parseInt(e.target.value)||1)}/>
+        </div>
+      </div>
+      <div style={{fontSize:11,color:'var(--text-dim)',marginTop:-10,marginBottom:16,fontFamily:"'JetBrains Mono',monospace"}}>
+        {days > 1 ? `${formatShortDate(startDate)} → ${formatShortDate(endDate)} · ${days} days` : `${formatShortDate(startDate)} · 1 day`}
+      </div>
+      <label style={s.label}>Technicians involved {selectedTechs.length > 0 && <span style={{fontWeight:400,textTransform:'none',color:'var(--accent-text)'}}>({selectedTechs.length} selected)</span>}</label>
+      {availableTechs.length === 0
+        ? <div style={{padding:'10px 12px',background:'var(--warn-bg)',border:'1px solid var(--warn)',borderRadius:6,fontSize:12,color:'var(--warn)',marginBottom:16}}>No team members yet. Add users in Settings → Users.</div>
+        : <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16,padding:'10px',background:'var(--bg-sunken)',borderRadius:7,border:'1px solid var(--border)'}}>
+            {availableTechs.map(name => chip(name, selectedTechs.includes(name), () => toggleTech(name)))}
+          </div>
+      }
+      <label style={s.label}>Tools / materials needed {selectedTools.length > 0 && <span style={{fontWeight:400,textTransform:'none',color:'var(--accent-text)'}}>({selectedTools.length} selected)</span>}</label>
+      {availableTools.length === 0
+        ? <div style={{padding:'10px 12px',background:'var(--bg-raised)',border:'1px solid var(--border)',borderRadius:6,fontSize:12,color:'var(--text-dim)',marginBottom:16}}>No tools yet. Add material channels in Tools & Materials.</div>
+        : <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16,padding:'10px',background:'var(--bg-sunken)',borderRadius:7,border:'1px solid var(--border)'}}>
+            {availableTools.map(t => { const slug = slugify(t.name); return chip(t.name, selectedTools.includes(slug), () => toggleTool(slug)); })}
+          </div>
+      }
+      <label style={s.label}>Comment</label>
+      <div style={s.noteInputWrap}>
+        <MentionDropdown mentions={commentMentions} inputRef={commentRef} getCategory={getCategory} dropUp={true}/>
+        <textarea ref={commentRef} style={s.textarea} value={comment} onChange={(e)=>commentMentions.handleChange(e)} onKeyDown={(e)=>commentMentions.handleKeyDown(e, commentRef)} placeholder="Scope of work, access notes, client requests..." rows={4}/>
+      </div>
+    </div>
+    <div style={s.modalFooter}>
+      <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
+      <button style={s.primaryBtn} onClick={save}>{editing ? 'Save' : 'Add booking'}</button>
+    </div>
+  </div>
+</div>);
 }
 
 function ShareModal({channel, onClose}) {
@@ -602,7 +732,17 @@ return (<div style={s.overlay} onClick={onClose}><div style={s.modal} onClick={e
 }
 
 function InfoDisplay({channel}) {
-return (<div style={s.infoList}>{INFO_FIELDS.map(f => { const val = channel[f.key]; return (<div key={f.key} style={s.infoLine}><span style={s.infoEmoji}>{f.emoji}</span><div style={{flex:1}}><span style={s.infoLabelBold}>{f.label}:</span>{val ? <span style={s.infoValText}>{val}</span> : <span style={s.infoEmpty}>—</span>}{f.key === 'clientName' && channel.clientMobile && (<span style={s.infoValText}> · 📱 {channel.clientMobile}</span>)}</div></div>); })}{channel.startDate && (<div style={s.infoLine}><span style={s.infoEmoji}>📅</span><div style={{flex:1}}><span style={s.infoLabelBold}>Start date:</span><span style={s.infoValText}>{formatDate(channel.startDate)}</span></div></div>)}{(channel.whatsapp || channel.surveyLink) && (<div style={s.infoLinksRow}>{channel.whatsapp && (<a href={channel.whatsapp} target="_blank" rel="noreferrer" style={{...s.infoLinkBtn, background:'var(--success-bg)', color:'var(--success)', borderColor:'var(--success)'}}>💬 Join WhatsApp</a>)}{channel.surveyLink && (<a href={channel.surveyLink} target="_blank" rel="noreferrer" style={{...s.infoLinkBtn, background:'var(--accent-bg)', color:'var(--accent-text)', borderColor:'var(--accent)'}}>🔍 Quick Survey</a>)}</div>)}</div>);
+const anchorStatus = useMemo(() => {
+  if (!channel.anchorInspectionDue) return null;
+  const now = new Date(); now.setHours(0,0,0,0);
+  const due = new Date(channel.anchorInspectionDue+'T00:00:00');
+  const diff = Math.round((due-now)/(1000*60*60*24));
+  if (diff < 0) return {label:`overdue by ${-diff} day${-diff===1?'':'s'}`, color:'var(--danger)', bg:'var(--danger-bg)'};
+  if (diff === 0) return {label:'due today', color:'var(--warn)', bg:'var(--warn-bg)'};
+  if (diff <= 14) return {label:`in ${diff} day${diff===1?'':'s'}`, color:'var(--warn)', bg:'var(--warn-bg)'};
+  return {label:`in ${diff} days`, color:'var(--success)', bg:'var(--success-bg)'};
+}, [channel.anchorInspectionDue]);
+return (<div style={s.infoList}>{INFO_FIELDS.map(f => { const val = channel[f.key]; return (<div key={f.key} style={s.infoLine}><span style={s.infoEmoji}>{f.emoji}</span><div style={{flex:1}}><span style={s.infoLabelBold}>{f.label}:</span>{val ? <span style={s.infoValText}>{val}</span> : <span style={s.infoEmpty}>—</span>}{f.key === 'clientName' && channel.clientMobile && (<span style={s.infoValText}> · 📱 {channel.clientMobile}</span>)}</div></div>); })}{channel.startDate && (<div style={s.infoLine}><span style={s.infoEmoji}>📅</span><div style={{flex:1}}><span style={s.infoLabelBold}>Start date:</span><span style={s.infoValText}>{formatDate(channel.startDate)}</span></div></div>)}{channel.anchorInspectionDue && (<div style={s.infoLine}><span style={s.infoEmoji}>⚓</span><div style={{flex:1,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}><span style={s.infoLabelBold}>Anchor inspection due:</span><span style={s.infoValText}>{formatDate(channel.anchorInspectionDue)}</span>{anchorStatus && <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.2,padding:'3px 8px',borderRadius:5,color:anchorStatus.color,background:anchorStatus.bg,border:'1px solid '+anchorStatus.color}}>{anchorStatus.label}</span>}</div></div>)}{(channel.whatsapp || channel.surveyLink) && (<div style={s.infoLinksRow}>{channel.whatsapp && (<a href={channel.whatsapp} target="_blank" rel="noreferrer" style={{...s.infoLinkBtn, background:'var(--success-bg)', color:'var(--success)', borderColor:'var(--success)'}}>💬 Join WhatsApp</a>)}{channel.surveyLink && (<a href={channel.surveyLink} target="_blank" rel="noreferrer" style={{...s.infoLinkBtn, background:'var(--accent-bg)', color:'var(--accent-text)', borderColor:'var(--accent)'}}>🔍 Quick Survey</a>)}</div>)}</div>);
 }
 
 function SharedView({channel, onExit}) {
@@ -673,26 +813,183 @@ return (
 );
 }
 
-function ThreadView({channel, thread, notes, setNotes, allChannels, incidents, onIncidentSubmit, onIncidentDelete, onMentionClick, onJumpToProject, onUpdateMaterials, onAddMaterial, calendarEntries, onNewBooking, onEditBooking, onDeleteBooking, getCategory, allJobs, timesheets, onAddTimesheet, onConfirmTimesheet, onDeleteTimesheet, onBulkConfirmTimesheet, crew, onAddCrew, onRemoveCrew, isMobile}) {
+function UsersView({company, onUpdateCompany, currentUser}) {
+const users = company.users || [];
+const [editingUser, setEditingUser] = useState(null);
+const [showNew, setShowNew] = useState(false);
+
+const saveUser = (user) => {
+  const idx = users.findIndex(u => u.id === user.id);
+  let next;
+  if (idx >= 0) { next = [...users]; next[idx] = user; }
+  else next = [...users, user];
+  onUpdateCompany({...company, users: next});
+  setEditingUser(null); setShowNew(false);
+};
+const removeUser = (id) => {
+  if (id === users[0]?.id) return alert('Cannot remove the primary Manager.');
+  if (id === currentUser.id) return alert('You cannot remove yourself.');
+  if (!confirm('Remove this user?')) return;
+  onUpdateCompany({...company, users: users.filter(u => u.id !== id)});
+};
+
+const roleColors = {
+  manager: {bg:'var(--accent-bg)', color:'var(--accent-text)', border:'var(--accent)'},
+  team_leader: {bg:'var(--warn-bg)', color:'var(--warn)', border:'var(--warn)'},
+  crew: {bg:'var(--success-bg)', color:'var(--success)', border:'var(--success)'},
+};
+
+return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}>
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:8}}>
+    <div>
+      <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:2}}>{users.length} user{users.length===1?'':'s'}</div>
+      <div style={{fontSize:13,color:'var(--text-dim)'}}>Add or edit users for {company.name}. Each user can log in with email + password.</div>
+    </div>
+    <button style={s.primaryBtn} onClick={()=>{setEditingUser(null);setShowNew(true);}}>+ Add user</button>
+  </div>
+  <div style={{flex:1,overflowY:'auto'}}>
+    {users.length === 0
+      ? <div style={{...s.empty,height:'50%'}}><span style={s.emptyIcon}>👥</span><span style={s.emptyText}>No users yet</span></div>
+      : users.map(u => {
+        const isPrimary = u.id === users[0]?.id;
+        const isMe = u.id === currentUser.id;
+        const rc = roleColors[u.role] || roleColors.crew;
+        return (<div key={u.id} style={{...s.crewRow,gap:12,padding:'12px 16px'}}>
+          <div style={{width:36,height:36,borderRadius:18,background:'var(--accent)',color:'#fff',fontWeight:700,fontSize:13,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{(u.name||'?').slice(0,2).toUpperCase()}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:600,color:'var(--text)'}}>{u.name} {isMe && <span style={{fontSize:10,color:'var(--text-dim)',fontWeight:500}}>(you)</span>} {isPrimary && <span style={{fontSize:10,color:'var(--text-dim)',fontWeight:500}}>· primary</span>}</div>
+            <div style={{fontSize:12,color:'var(--text-dim)',fontFamily:"'JetBrains Mono',monospace"}}>{u.email}</div>
+          </div>
+          <span style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.2,...rc,border:'1px solid '+rc.border}}>{(u.role||'crew').replace('_',' ')}</span>
+          <button style={{...s.copyBtn,padding:'5px 10px'}} onClick={()=>{setEditingUser(u);setShowNew(true);}}>✎</button>
+          {!isPrimary && !isMe && <button style={{...s.copyBtn,padding:'5px 10px',color:'var(--danger)',borderColor:'var(--danger)'}} onClick={()=>removeUser(u.id)}>×</button>}
+        </div>);
+      })
+    }
+  </div>
+  {showNew && <UserEditModal onClose={()=>{setShowNew(false);setEditingUser(null);}} onSave={saveUser} editing={editingUser} isFirstUser={editingUser?.id === users[0]?.id}/>}
+</div>);
+}
+
+function UserEditModal({onClose, onSave, editing, isFirstUser}) {
+const [name, setName] = useState(editing?.name || '');
+const [email, setEmail] = useState(editing?.email || '');
+const [password, setPassword] = useState(editing?.password || '1234');
+const [role, setRole] = useState(editing?.role || 'crew');
+
+const save = () => {
+  if (!name.trim()) return alert('Name required.');
+  if (!email.trim()) return alert('Email required.');
+  if (!password.trim()) return alert('Password required.');
+  if (isFirstUser && role !== 'manager') return alert('The primary user must be a Manager.');
+  onSave({
+    id: editing?.id || ('u-'+Date.now().toString(36)),
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    password: password.trim(),
+    role,
+    createdAt: editing?.createdAt || new Date().toISOString(),
+  });
+};
+
+return (<div style={s.overlay} onClick={onClose}>
+  <div style={{...s.modal,...s.modalSm}} onClick={e=>e.stopPropagation()}>
+    <div style={s.modalHeader}>
+      <div>
+        <div style={s.modalKicker}>{editing ? 'Edit' : 'New'} · User</div>
+        <div style={s.modalTitle}>{editing ? 'Edit user' : 'Add new user'}</div>
+      </div>
+      <button style={s.closeBtn} onClick={onClose}>×</button>
+    </div>
+    <div style={s.modalBody}>
+      <label style={s.label}>Name *</label>
+      <input style={s.input} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Felipe" autoFocus/>
+      <label style={s.label}>Email *</label>
+      <input style={s.input} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="felipe@company.com"/>
+      <label style={s.label}>Password *</label>
+      <input style={s.input} value={password} onChange={e=>setPassword(e.target.value)} placeholder="1234"/>
+      <label style={s.label}>Role *</label>
+      <select style={s.input} value={role} onChange={e=>setRole(e.target.value)} disabled={isFirstUser}>
+        <option value="manager">Manager — full access, approves timesheets, manages users</option>
+        <option value="team_leader">Team Leader — creates jobs, schedules, reports</option>
+        <option value="crew">Crew — logs hours, views projects</option>
+      </select>
+      {isFirstUser && <div style={{fontSize:11,color:'var(--text-dim)',marginTop:-10,marginBottom:14}}>The primary user is always a Manager.</div>}
+    </div>
+    <div style={s.modalFooter}>
+      <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
+      <button style={s.primaryBtn} onClick={save}>{editing ? 'Save' : 'Add user'}</button>
+    </div>
+  </div>
+</div>);
+}
+
+function CompanyInfoView({company, onUpdateCompany}) {
+const [name, setName] = useState(company.name);
+const [logo, setLogo] = useState(company.logo || '');
+const [saved, setSaved] = useState(false);
+
+const onLogoUpload = (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  if (file.size > 500 * 1024) { alert('Logo too big. Use an image under 500 KB.'); return; }
+  const reader = new FileReader();
+  reader.onload = (ev) => setLogo(ev.target.result);
+  reader.readAsDataURL(file);
+};
+
+const save = () => {
+  if (!name.trim()) return alert('Company name required.');
+  onUpdateCompany({...company, name: name.trim(), logo});
+  setSaved(true); setTimeout(()=>setSaved(false), 2000);
+};
+
+return (<div style={{maxWidth:560}}>
+  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:2}}>Company info</div>
+  <div style={{fontSize:13,color:'var(--text-dim)',marginBottom:18}}>Edit your company name and logo. Changes show up everywhere — sidebar, login, share cards.</div>
+  <div style={{...s.infoList,padding:'24px 26px'}}>
+    <label style={s.label}>Company name</label>
+    <input style={s.input} value={name} onChange={e=>setName(e.target.value)}/>
+    <label style={s.label}>Logo</label>
+    <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:8}}>
+      {logo
+        ? <img src={logo} alt="logo" style={{width:72,height:72,borderRadius:10,objectFit:'cover',border:'1px solid var(--border)'}}/>
+        : <div style={{width:72,height:72,borderRadius:10,background:'var(--bg-raised)',border:'1px dashed var(--border-strong)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-faint)',fontSize:24}}>🏢</div>
+      }
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        <label style={{...s.cancelBtn,cursor:'pointer',display:'inline-block',textAlign:'center'}}>
+          {logo ? 'Change logo' : 'Upload logo'}
+          <input type="file" accept="image/*" onChange={onLogoUpload} style={{display:'none'}}/>
+        </label>
+        {logo && <button style={{...s.cancelBtn,color:'var(--danger)',borderColor:'var(--danger)'}} onClick={()=>setLogo('')}>Remove</button>}
+      </div>
+    </div>
+    <div style={{fontSize:11,color:'var(--text-faint)',marginBottom:18}}>Image should be square. Max 500 KB.</div>
+    <button style={{...s.primaryBtn,width:'100%'}} onClick={save}>{saved ? '✓ Saved' : 'Save changes'}</button>
+  </div>
+</div>);
+}
+
+function ThreadView({channel, thread, notes, setNotes, allChannels, incidents, onIncidentSubmit, onIncidentDelete, onMentionClick, onJumpToProject, onUpdateMaterials, onAddMaterial, calendarEntries, onNewBooking, onEditBooking, onDeleteBooking, getCategory, allJobs, timesheets, onAddTimesheet, onConfirmTimesheet, onDeleteTimesheet, onBulkConfirmTimesheet, crew, onAddCrew, onRemoveCrew, isMobile, company, currentUser, onUpdateCompany}) {
 if(channel.type === 'plain') { if(channel.name === '📢announcements') { return <AnnouncementsView channel={channel} notes={notes} setNotes={setNotes} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>; } return <NotesFeed channelId={channel.id} threadId="main" notes={notes} setNotes={setNotes} placeholder={`Post in ${channel.name}... (type # to mention)`} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>; }
 if(channel.type === 'materials') return <MaterialsView channel={channel} onUpdate={onUpdateMaterials} onAdd={onAddMaterial}/>;
-if(channel.type === 'calendar') return <CalendarView entries={calendarEntries} jobChannels={allJobs} allChannels={allChannels} getCategory={getCategory} onNewBooking={onNewBooking} onEditBooking={onEditBooking} onDeleteBooking={onDeleteBooking} onJumpToProject={onJumpToProject} onMentionClick={onMentionClick}/>;
+if(channel.type === 'calendar') return <CalendarView entries={calendarEntries} jobChannels={allJobs} allChannels={allChannels} getCategory={getCategory} onNewBooking={onNewBooking} onEditBooking={onEditBooking} onDeleteBooking={onDeleteBooking} onJumpToProject={onJumpToProject} onMentionClick={onMentionClick} company={company}/>;
 if(channel.type === 'incidents-bin') return <IncidentsBinView incidentType={channel.incidentType} incidents={incidents} allChannels={allChannels} onMentionClick={onMentionClick} onJumpToProject={onJumpToProject}/>;
 if(channel.type === 'ts-overview') return <TimesheetOverviewView timesheets={timesheets} crew={crew} allJobs={allJobs}/>;
 if(channel.type === 'ts-project') return <TimesheetProjectChannelView projectId={channel._projectId} timesheets={timesheets} crew={crew}/>;
 if(channel.type === 'roster') return <CrewRosterView crew={crew} onAdd={onAddCrew} onRemove={onRemoveCrew}/>;
+if(channel.type === 'users') return <UsersView company={company} onUpdateCompany={onUpdateCompany} currentUser={currentUser}/>;
+if(channel.type === 'company-info') return <CompanyInfoView company={company} onUpdateCompany={onUpdateCompany}/>;
 if(thread.id === 'info') return <InfoDisplay channel={channel}/>;
-if(thread.id === 'timesheet') return <ProjectTimesheetView channel={channel} timesheets={timesheets} onAdd={onAddTimesheet} onConfirm={onConfirmTimesheet} onDelete={onDeleteTimesheet} onBulkConfirm={onBulkConfirmTimesheet}/>;
+if(thread.id === 'timesheet') return <ProjectTimesheetView channel={channel} timesheets={timesheets} onAdd={onAddTimesheet} onConfirm={onConfirmTimesheet} onDelete={onDeleteTimesheet} onBulkConfirm={onBulkConfirmTimesheet} currentUser={currentUser}/>;
 if(thread.id === 'incidents') return <ProjectIncidentsView channel={channel} incidents={incidents} allChannels={allChannels} onMentionClick={onMentionClick} onAdd={onIncidentSubmit} onDelete={onIncidentDelete}/>;
 // RAMS: embedded iframe, pre-filled with project data
 if(thread.id === 'rams') return <RamsEmbedView project={channel}/>;
-if(thread.id === 'survey') return (<div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:14}}><div style={{fontSize:40,opacity:0.7}}>🔍</div><div style={{fontSize:15,fontWeight:700,color:'var(--text)'}}>Quick Survey</div>{channel.surveyLink ? <a href={channel.surveyLink} target="_blank" rel="noreferrer" style={{...s.infoLinkBtn, background:'var(--accent)', color:'#fff', borderColor:'var(--accent)', marginTop:4}}>Open Quick Survey →</a> : <div style={{fontSize:12,color:'var(--text-dim)'}}>No Quick Survey link set.</div>}</div>);
 return <NotesFeed channelId={channel.id} threadId={thread.id} notes={notes} setNotes={setNotes} placeholder={`Add a ${thread.label} note... (type # to mention)`} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>;
 }
 
-function CategoryBlock({category, channels, activeId, onSelect, onAddChannel, onEditCategory, getColor, onDragStart, onDragOver, onDrop, isDragging}) {
+function CategoryBlock({category, channels, activeId, onSelect, onAddChannel, onEditCategory, getColor, onDragStart, onDragOver, onDrop, isDragging, canAddChannel, canEditCategory}) {
 const [open, setOpen] = useState(!category.collapsed); const dragHandleRef = useRef(null);
-return (<div style={{...s.catWrap, ...(isDragging ? s.catWrapDragging : {})}} draggable={true} onDragStart={(e) => onDragStart(e, category)} onDragOver={onDragOver} onDrop={(e) => onDrop(e, category)} data-category-id={category.id}><div style={s.catHeader}><span onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0}}><span style={{...s.catCaret, transform: open?'rotate(90deg)':'rotate(0deg)'}}>▶</span><span style={s.catEmoji}>{category.emoji}</span><span style={s.catLabel}>{category.name}</span></span><span style={s.catCount}>{channels.length}</span>{category.system !== 'incidents' && category.system !== 'timesheets' && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onAddChannel(category);}}>+</button>)}{!category.system && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onEditCategory(category);}}>✎</button>)}<span style={s.catDragHandle} ref={dragHandleRef}>⋮⋮</span></div>{open && channels.map(ch => { const isActive = activeId === ch.id; const isDone = ch.status === 'done'; let hash = '#'; if(ch.type === 'job') hash = '◆'; else if(ch.type === 'materials') hash = ''; else if(ch.type === 'calendar') hash = ''; else if(ch.type === 'incidents-bin') { const t = INCIDENT_TYPES.find(t => t.id === ch.incidentType); hash = t?.emoji || '⚠️'; } else if(ch.type === 'ts-overview') hash = ''; else if(ch.type === 'ts-project') hash = ''; else if(ch.type === 'roster') hash = ''; else if(ch.type === 'plain') hash = ''; const col = ch.type === 'job' && ch.colorId && ch.status !== 'done' ? getColor(ch.colorId) : null; const tsCol = ch.type === 'ts-project' && ch.colorId ? getColor(ch.colorId) : null; return (<div key={ch.id} style={{...s.chanItem, ...(isActive?s.chanItemActive:{}), ...(isDone?s.chanItemDone:{})}} onClick={()=>onSelect(ch.id)}><span style={s.chanHash}>{hash}</span><span style={{...s.chanName, ...(isActive?s.chanNameActive:{})}}>{ch.name}</span>{col && <span style={{...s.chanDot, background:col.bar}}/>}{tsCol && <span style={{...s.chanDot, background:tsCol.bar}}/>}</div>); })}{open && channels.length === 0 && <div style={s.emptyCat}>no channels yet</div>}</div>);
+return (<div style={{...s.catWrap, ...(isDragging ? s.catWrapDragging : {})}} draggable={canEditCategory} onDragStart={canEditCategory ? (e) => onDragStart(e, category) : undefined} onDragOver={onDragOver} onDrop={canEditCategory ? (e) => onDrop(e, category) : undefined} data-category-id={category.id}><div style={s.catHeader}><span onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0,cursor:'pointer'}}><span style={{...s.catCaret, transform: open?'rotate(90deg)':'rotate(0deg)'}}>▶</span><span style={s.catEmoji}>{category.emoji}</span><span style={s.catLabel}>{category.name}</span></span><span style={s.catCount}>{channels.length}</span>{canAddChannel && category.system !== 'incidents' && category.system !== 'timesheets' && category.system !== 'settings' && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onAddChannel(category);}}>+</button>)}{canEditCategory && !category.system && (<button style={s.catAddBtn} onClick={(e)=>{e.stopPropagation();onEditCategory(category);}}>✎</button>)}{canEditCategory && <span style={s.catDragHandle} ref={dragHandleRef}>⋮⋮</span>}</div>{open && channels.map(ch => { const isActive = activeId === ch.id; const isDone = ch.status === 'done'; let hash = '#'; if(ch.type === 'job') hash = '◆'; else if(ch.type === 'materials') hash = ''; else if(ch.type === 'calendar') hash = ''; else if(ch.type === 'incidents-bin') { const t = INCIDENT_TYPES.find(t => t.id === ch.incidentType); hash = t?.emoji || '⚠️'; } else if(ch.type === 'ts-overview') hash = ''; else if(ch.type === 'ts-project') hash = ''; else if(ch.type === 'roster' || ch.type === 'users' || ch.type === 'company-info') hash = ''; else if(ch.type === 'plain') hash = ''; const col = ch.type === 'job' && ch.colorId && ch.status !== 'done' ? getColor(ch.colorId) : null; const tsCol = ch.type === 'ts-project' && ch.colorId ? getColor(ch.colorId) : null; return (<div key={ch.id} style={{...s.chanItem, ...(isActive?s.chanItemActive:{}), ...(isDone?s.chanItemDone:{})}} onClick={()=>onSelect(ch.id)}><span style={s.chanHash}>{hash}</span><span style={{...s.chanName, ...(isActive?s.chanNameActive:{})}}>{ch.name}</span>{col && <span style={{...s.chanDot, background:col.bar}}/>}{tsCol && <span style={{...s.chanDot, background:tsCol.bar}}/>}</div>); })}{open && channels.length === 0 && <div style={s.emptyCat}>no channels yet</div>}</div>);
 }
 
 // ── PWA install button in the sidebar footer ────────────────────────────────
@@ -719,7 +1016,7 @@ if(isIOS) {
 return null;
 }
 
-function App({company, currentUser, onLogout}) {
+function App({company, currentUser, onLogout, onUpdateCompany}) {
 const k = (key) => 'th-co-' + company.id + ':' + key;
 const [theme, setTheme] = useTheme(); const [data, setData] = useStorage(k('data'), null); const [notes, setNotes] = useStorage(k('notes'), {}); const [incidents, setIncidents] = useStorage(k('incidents'), []); const [calendarEntries, setCalendarEntries] = useStorage(k('calendar'), null); const [crew, setCrew] = useStorage(k('crew'), []); const [timesheets, setTimesheets] = useStorage(k('timesheets'), null); const [activeId, setActiveId] = useState(null); const [activeThreadId, setActiveThreadId] = useState('info'); const [showJobWizard, setShowJobWizard] = useState(false); const [editingJob, setEditingJob] = useState(null); const [jobTargetCategory, setJobTargetCategory] = useState('cat-run'); const [showShare, setShowShare] = useState(false); const [showCategoryModal, setShowCategoryModal] = useState(false); const [editingCategory, setEditingCategory] = useState(null); const [showTypePicker, setShowTypePicker] = useState(null); const [showAddThread, setShowAddThread] = useState(false); const [showIncidentForm, setShowIncidentForm] = useState(false); const [showAddMaterial, setShowAddMaterial] = useState(false); const [bookingModal, setBookingModal] = useState(null); const [sharedChannel, setSharedChannel] = useState(null); const [showTimesheetModal, setShowTimesheetModal] = useState(null); const [draggedCategory, setDraggedCategory] = useState(null);
 const [isOnline, setIsOnline] = useState(typeof navigator==='undefined' || navigator.onLine!==false);
@@ -732,14 +1029,38 @@ useEffect(() => {
   return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
 }, []);
 useEffect(() => { if(data === null) setData(seedData()); }, [data]); useEffect(() => { if(calendarEntries === null) setCalendarEntries(seedCalendarEntries()); }, [calendarEntries]); useEffect(() => { if(timesheets === null) setTimesheets(seedTimesheetEntries()); }, [timesheets]);
+// Migration: add Settings category / users / company-info channels if missing
+useEffect(() => {
+  if (!data) return;
+  let changed = false; let next = data;
+  if (!next.categories.find(c => c.id === 'cat-settings')) {
+    next = {...next, categories:[...next.categories, {id:'cat-settings',name:'Settings',emoji:'⚙️',system:'settings',collapsed:false,order:99,managerOnly:true}]};
+    changed = true;
+  }
+  if (!next.channels.find(c => c.id === 'settings-users')) {
+    next = {...next, channels:[...next.channels, {id:'settings-users',type:'users',name:'👥users',categoryId:'cat-settings',createdAt:new Date().toISOString()}]};
+    changed = true;
+  }
+  if (!next.channels.find(c => c.id === 'settings-company')) {
+    next = {...next, channels:[...next.channels, {id:'settings-company',type:'company-info',name:'🏢company-info',categoryId:'cat-settings',createdAt:new Date().toISOString()}]};
+    changed = true;
+  }
+  // Hide legacy crew-roster (kept for backward-compat but hidden)
+  const oldRoster = next.channels.find(c => c.id === 'crew-roster');
+  if (oldRoster && !oldRoster._hidden) {
+    next = {...next, channels: next.channels.map(c => c.id === 'crew-roster' ? {...c, _hidden:true} : c)};
+    changed = true;
+  }
+  if (changed) setData(next);
+}, [data]);
 useEffect(() => { const checkHash = () => { const hash = window.location.hash; if(hash.startsWith('#p=')) { const decoded = decodeObj(hash.slice(3)); if(decoded) setSharedChannel(decoded); } else setSharedChannel(null); }; checkHash(); window.addEventListener('hashchange', checkHash); return () => window.removeEventListener('hashchange', checkHash); }, []);
 if(sharedChannel) return <SharedView channel={sharedChannel} onExit={() => { window.location.hash = ''; setSharedChannel(null); }}/>;
 const d = data || {categories:[],channels:[]}; const allJobs = d.channels.filter(c => c.type === 'job');
-const sortedCategories = useMemo(() => [...d.categories].sort((a, b) => (a.order ?? 999) - (b.order ?? 999)), [d.categories]);
+const sortedCategories = useMemo(() => [...d.categories].filter(c => !c.managerOnly || currentUser.role === 'manager').sort((a, b) => (a.order ?? 999) - (b.order ?? 999)), [d.categories, currentUser.role]);
 const tsProjectChannels = useMemo(() => { const projectIds = [...new Set((timesheets||[]).map(t => t.projectId))]; return projectIds.map(pid => { const project = allJobs.find(j => j.id === pid); return { id: 'ts-proj-' + pid, type: 'ts-project', name: project?.name || 'Unknown project', categoryId: 'cat-timesheets', _projectId: pid, colorId: project?.colorId }; }); }, [timesheets, allJobs]);
 const allChannelsIncludingDynamic = useMemo(() => [...d.channels, ...tsProjectChannels], [d.channels, tsProjectChannels]);
 const channel = d.channels.find(c => c.id === activeId) || tsProjectChannels.find(c => c.id === activeId); const getCategory = (id) => d.categories.find(c => c.id === id); const updateData = (fn) => setData(prev => fn(prev || {categories:[],channels:[]}));
-const channelsByCat = (catId) => { const regular = d.channels.filter(c => c.categoryId === catId); if(catId === 'cat-timesheets') return [...regular, ...tsProjectChannels]; return regular; };
+const channelsByCat = (catId) => { const regular = d.channels.filter(c => c.categoryId === catId && !c._hidden); if(catId === 'cat-timesheets') return [...regular, ...tsProjectChannels]; return regular; };
 const handleDragStart = (e, category) => { setDraggedCategory(category); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', category.id); };
 const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
 const handleDrop = (e, targetCategory) => { e.preventDefault(); if(!draggedCategory || draggedCategory.id === targetCategory.id) return; updateData(prev => { const categories = [...prev.categories]; const draggedIdx = categories.findIndex(c => c.id === draggedCategory.id); const targetIdx = categories.findIndex(c => c.id === targetCategory.id); if(draggedIdx === -1 || targetIdx === -1) return prev; const [removed] = categories.splice(draggedIdx, 1); categories.splice(targetIdx, 0, removed); categories.forEach((c, i) => { c.order = i; }); return {...prev, categories}; }); setDraggedCategory(null); };
@@ -799,16 +1120,20 @@ return (<div style={s.app}>
     </div>
     <button onClick={onLogout} title="Logout" style={{padding:'4px 8px',background:'var(--bg-raised)',border:'1px solid var(--border)',borderRadius:5,fontSize:10,fontWeight:600,color:'var(--text-muted)',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.2}}>↩ Logout</button>
   </div>
-  <div style={s.actionBar}>
-    <button style={s.actionBtn} onClick={() => { setEditingJob(null); setJobTargetCategory('cat-run'); setShowJobWizard(true); if(isMobile) setDrawerOpen(false); }}>+ NEW PROJECT</button>
-    <button style={s.actionBtn} onClick={() => { setEditingCategory(null); setShowCategoryModal(true); if(isMobile) setDrawerOpen(false); }}>+ CATEGORY</button>
-  </div>
+  {(currentUser.role === 'manager' || currentUser.role === 'team_leader') && (
+    <div style={s.actionBar}>
+      <button style={s.actionBtn} onClick={() => { setEditingJob(null); setJobTargetCategory('cat-run'); setShowJobWizard(true); if(isMobile) setDrawerOpen(false); }}>+ NEW PROJECT</button>
+      {currentUser.role === 'manager' && <button style={s.actionBtn} onClick={() => { setEditingCategory(null); setShowCategoryModal(true); if(isMobile) setDrawerOpen(false); }}>+ CATEGORY</button>}
+    </div>
+  )}
   <div style={s.projList}>
     {sortedCategories.map(cat => (
       <CategoryBlock key={cat.id} category={cat} channels={channelsByCat(cat.id)} activeId={activeId} onSelect={selectChannel} getColor={getColor}
         onAddChannel={(c) => { if(c.system === 'running') { setEditingJob(null); setJobTargetCategory(c.id); setShowJobWizard(true); if(isMobile) setDrawerOpen(false); } else { setShowTypePicker({category: c}); if(isMobile) setDrawerOpen(false); } }}
         onEditCategory={(c) => { setEditingCategory(c); setShowCategoryModal(true); if(isMobile) setDrawerOpen(false); }}
-        onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDragging={draggedCategory?.id === cat.id}/>
+        onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDragging={draggedCategory?.id === cat.id}
+        canAddChannel={currentUser.role === 'manager' || currentUser.role === 'team_leader'}
+        canEditCategory={currentUser.role === 'manager'}/>
     ))}
   </div>
   <div style={{padding:'8px 12px 12px',borderTop:'1px solid var(--border)'}}>
@@ -820,10 +1145,10 @@ return (<div style={s.app}>
     <div style={{...s.empty,height:'100%'}}>
       {isMobile && <button style={{...s.burgerBtn, position:'absolute', top:'calc(12px + env(safe-area-inset-top))', left:12}} onClick={()=>setDrawerOpen(true)}>☰</button>}
       <span style={s.emptyIcon}>🏗️</span>
-      <span style={s.emptyText}>Select or create a channel</span>
+      <span style={s.emptyText}>Select {(currentUser.role === 'manager' || currentUser.role === 'team_leader') ? 'or create' : ''} a channel</span>
       {isMobile
         ? <button style={s.primaryBtn} onClick={() => setDrawerOpen(true)}>☰ Open menu</button>
-        : <button style={s.primaryBtn} onClick={() => { setEditingJob(null); setJobTargetCategory('cat-run'); setShowJobWizard(true); }}>+ New project</button>
+        : (currentUser.role === 'manager' || currentUser.role === 'team_leader') && <button style={s.primaryBtn} onClick={() => { setEditingJob(null); setJobTargetCategory('cat-run'); setShowJobWizard(true); }}>+ New project</button>
       }
     </div>
   ) : (<>
@@ -832,18 +1157,18 @@ return (<div style={s.app}>
       <div style={s.headerTitleWrap}>
         <div style={headerKickerStyle}>{currentCategory ? `${currentCategory.emoji} ${currentCategory.name}` : ''}{channel.status === 'done' && ' · done'}</div>
         <div style={headerTitleStyle}>{channelColor && <span style={{...s.headerColorDot, background:channelColor.bar}}/>}{channel.type === 'ts-project' ? '🏢 ' + channel.name : channel.name}</div>
-        <div style={headerMetaStyle}>{channel.type === 'job' ? `${channel.address || 'No address'} · Started ${formatDate(channel.startDate)}` : channel.name === '📢announcements' ? 'Company-wide announcements — join WhatsApp group' : channel.type === 'materials' ? 'Materials list' : channel.type === 'calendar' ? 'Work calendar — bookings & crew scheduling' : channel.type === 'incidents-bin' ? 'All ' + channel.name + ' reports across projects' : channel.type === 'ts-overview' ? 'View hours per worker and project — filter by date range for invoicing' : channel.type === 'ts-project' ? "All workers' hours on this project" : channel.type === 'roster' ? 'Manage crew members — names appear in timesheet dropdowns' : 'Plain channel'}</div>
+        <div style={headerMetaStyle}>{channel.type === 'job' ? `${channel.address || 'No address'} · Started ${formatDate(channel.startDate)}` : channel.name === '📢announcements' ? 'Company-wide announcements — join WhatsApp group' : channel.type === 'materials' ? 'Materials list' : channel.type === 'calendar' ? 'Work calendar — bookings & crew scheduling' : channel.type === 'incidents-bin' ? 'All ' + channel.name + ' reports across projects' : channel.type === 'ts-overview' ? 'View hours per worker and project — filter by date range for invoicing' : channel.type === 'ts-project' ? "All workers' hours on this project" : channel.type === 'users' ? 'Manage user accounts and roles' : channel.type === 'company-info' ? 'Company name and logo settings' : channel.type === 'roster' ? 'Manage crew members — names appear in timesheet dropdowns' : 'Plain channel'}</div>
       </div>
       <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
         {channel.type === 'job' && channel.whatsapp && (<a href={channel.whatsapp} target="_blank" rel="noreferrer" style={{...s.badge,...s.badgeSuccess,textDecoration:'none'}}>💬 Chat</a>)}
         {channel.type !== 'job' && channel.whatsappLink && (<a href={channel.whatsappLink} target="_blank" rel="noreferrer" style={{...s.badge,...s.badgeSuccess,textDecoration:'none'}}>💬 WhatsApp</a>)}
-        {channel.type === 'plain' && !channel.whatsappLink && (<button style={{...s.badge,...s.badgeGhost}} onClick={() => { const link = prompt('Paste WhatsApp group invite link:'); if(link && link.trim()) updateData(prev => ({...prev, channels: prev.channels.map(c => c.id === channel.id ? {...c, whatsappLink: link.trim()} : c)})); }}>💬 Set WhatsApp</button>)}
+        {channel.type === 'plain' && !channel.whatsappLink && currentUser.role !== 'crew' && (<button style={{...s.badge,...s.badgeGhost}} onClick={() => { const link = prompt('Paste WhatsApp group invite link:'); if(link && link.trim()) updateData(prev => ({...prev, channels: prev.channels.map(c => c.id === channel.id ? {...c, whatsappLink: link.trim()} : c)})); }}>💬 Set WhatsApp</button>)}
         {channel.type === 'job' && (<>
           <button style={{...s.badge,...s.badgePrimary}} onClick={() => setShowShare(true)}>↗ Share</button>
-          <button style={{...s.badge,...s.badgeGhost}} onClick={() => toggleStatus(channel.id)}>{channel.status === 'done' ? '↻ Re-open' : '✓ Done'}</button>
-          <button style={{...s.badge,...s.badgeGhost}} onClick={() => { setEditingJob(channel); setShowJobWizard(true); }}>✏ Edit</button>
+          {(currentUser.role === 'manager' || currentUser.role === 'team_leader') && <button style={{...s.badge,...s.badgeGhost}} onClick={() => toggleStatus(channel.id)}>{channel.status === 'done' ? '↻ Re-open' : '✓ Done'}</button>}
+          {(currentUser.role === 'manager' || currentUser.role === 'team_leader') && <button style={{...s.badge,...s.badgeGhost}} onClick={() => { setEditingJob(channel); setShowJobWizard(true); }}>✏ Edit</button>}
         </>)}
-        {channel.type !== 'incidents-bin' && channel.type !== 'ts-overview' && channel.type !== 'ts-project' && channel.type !== 'roster' && (<button style={{...s.badge,...s.badgeGhost}} onClick={() => deleteChannel(channel.id)}>🗑</button>)}
+        {channel.type !== 'incidents-bin' && channel.type !== 'ts-overview' && channel.type !== 'ts-project' && channel.type !== 'roster' && channel.type !== 'users' && channel.type !== 'company-info' && currentUser.role === 'manager' && (<button style={{...s.badge,...s.badgeGhost}} onClick={() => deleteChannel(channel.id)}>🗑</button>)}
       </div>
     </div>
     {channel.type === 'job' && (
@@ -859,7 +1184,7 @@ return (<div style={s.app}>
       </div>
     )}
     <div style={contentStyle}>
-      <ThreadView channel={channel} thread={currentThread} notes={notes} setNotes={setNotes} allChannels={allChannelsIncludingDynamic} incidents={incidents} onIncidentSubmit={() => setShowIncidentForm(true)} onIncidentDelete={deleteIncident} onMentionClick={handleMentionClick} onJumpToProject={selectChannel} onUpdateMaterials={updateMaterials} onAddMaterial={() => setShowAddMaterial(true)} calendarEntries={calendarEntries || []} onNewBooking={(date) => setBookingModal({defaultDate: date})} onEditBooking={(entry) => setBookingModal({editing: entry})} onDeleteBooking={deleteBooking} getCategory={getCategory} allJobs={allJobs} timesheets={timesheets || []} onAddTimesheet={() => setShowTimesheetModal({projectId:channel.id, projectName:channel.name})} onConfirmTimesheet={confirmTimesheetEntry} onDeleteTimesheet={deleteTimesheetEntry} onBulkConfirmTimesheet={bulkConfirmTimesheet} crew={crew} onAddCrew={addCrew} onRemoveCrew={removeCrew} isMobile={isMobile}/>
+      <ThreadView channel={channel} thread={currentThread} notes={notes} setNotes={setNotes} allChannels={allChannelsIncludingDynamic} incidents={incidents} onIncidentSubmit={() => setShowIncidentForm(true)} onIncidentDelete={deleteIncident} onMentionClick={handleMentionClick} onJumpToProject={selectChannel} onUpdateMaterials={updateMaterials} onAddMaterial={() => setShowAddMaterial(true)} calendarEntries={calendarEntries || []} onNewBooking={(date) => setBookingModal({defaultDate: date})} onEditBooking={(entry) => setBookingModal({editing: entry})} onDeleteBooking={deleteBooking} getCategory={getCategory} allJobs={allJobs} timesheets={timesheets || []} onAddTimesheet={() => setShowTimesheetModal({projectId:channel.id, projectName:channel.name})} onConfirmTimesheet={confirmTimesheetEntry} onDeleteTimesheet={deleteTimesheetEntry} onBulkConfirmTimesheet={bulkConfirmTimesheet} crew={crew} onAddCrew={addCrew} onRemoveCrew={removeCrew} isMobile={isMobile} company={company} currentUser={currentUser} onUpdateCompany={onUpdateCompany}/>
     </div>
   </>)}
 </div>
@@ -870,8 +1195,8 @@ return (<div style={s.app}>
 {showAddThread && <AddThreadModal onClose={() => setShowAddThread(false)} onSave={addCustomThread}/>}
 {showIncidentForm && channel && channel.type === 'job' && (<IncidentFormModal onClose={() => setShowIncidentForm(false)} onSave={submitIncident} project={channel}/>)}
 {showAddMaterial && <AddMaterialModal onClose={() => setShowAddMaterial(false)} onSave={addMaterial}/>}
-{bookingModal && (<CalendarBookingModal onClose={() => setBookingModal(null)} onSave={saveBooking} jobChannels={allJobs.filter(j => j.status !== 'done')} allChannels={allChannelsIncludingDynamic} getCategory={getCategory} editing={bookingModal.editing} defaultDate={bookingModal.defaultDate}/>)}
-{showTimesheetModal && (<TimesheetEntryModal onClose={() => setShowTimesheetModal(null)} onSave={(entry)=>{saveTimesheetEntry(entry); setShowTimesheetModal(null);}} crew={crew} projectId={showTimesheetModal.projectId} projectName={showTimesheetModal.projectName} editing={showTimesheetModal.editing} timesheets={timesheets || []} onAddCrew={addCrew}/>)}
+{bookingModal && (<CalendarBookingModal onClose={() => setBookingModal(null)} onSave={saveBooking} jobChannels={allJobs.filter(j => j.status !== 'done')} allChannels={allChannelsIncludingDynamic} getCategory={getCategory} editing={bookingModal.editing} defaultDate={bookingModal.defaultDate} company={company}/>)}
+{showTimesheetModal && (<TimesheetEntryModal onClose={() => setShowTimesheetModal(null)} onSave={(entry)=>{saveTimesheetEntry(entry); setShowTimesheetModal(null);}} crew={crew} projectId={showTimesheetModal.projectId} projectName={showTimesheetModal.projectName} editing={showTimesheetModal.editing} timesheets={timesheets || []} onAddCrew={addCrew} currentUser={currentUser} company={company}/>)}
 </div>);
 }
 
@@ -1167,7 +1492,11 @@ if (!currentUser) {
   return null;
 }
 
-return <App company={company} currentUser={currentUser} onLogout={handleLogout}/>;
+const updateCompany = (updated) => {
+  setCompanies(prev => prev.map(c => c.id === updated.id ? updated : c));
+};
+
+return <App company={company} currentUser={currentUser} onLogout={handleLogout} onUpdateCompany={updateCompany}/>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<RootApp/>);
