@@ -639,14 +639,34 @@ const save = () => { if(!name.trim()) return; onSave({id:'thread-'+Date.now().to
 return (<div style={s.overlay} onClick={onClose}><div style={{...s.modal,...s.modalSm}} onClick={e=>e.stopPropagation()}><div style={s.modalHeader}><div><div style={s.modalKicker}>New · Thread</div><div style={s.modalTitle}>Custom thread</div></div><button style={s.closeBtn} onClick={onClose}>×</button></div><div style={s.modalBody}><label style={s.label}>Thread name *</label><input style={s.input} value={name} onChange={e=>setName(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter'&&name.trim())save();}}/><label style={s.label}>Emoji</label><input style={s.input} value={emoji} onChange={e=>setEmoji(e.target.value)} maxLength={4}/></div><div style={s.modalFooter}><button style={s.cancelBtn} onClick={onClose}>Cancel</button><button style={{...s.primaryBtn, opacity:name.trim()?1:0.5}} disabled={!name.trim()} onClick={save}>Create</button></div></div></div>);
 }
 
-function IncidentFormModal({onClose, onSave, project, editing, currentUser}) {
+function IncidentFormModal({onClose, onSave, project, editing, currentUser, calendarEntries, company}) {
 const [data, setData] = useState(editing || {date:todayISO(), type:'near-miss', technicians:project.teamLeader||'', whatHappened:'', howToAvoid:''});
 const set = k => e => setData(p => ({...p, [k]: e.target.value}));
+const techSuggestions = useMemo(() => {
+  const {sameDay, allProject} = getSuggestedTechniciansForDate(project.id, data.date, calendarEntries || []);
+  const companyUserNames = (company?.users || []).map(u => u.name);
+  const allUnique = new Set([...sameDay, ...allProject]);
+  return {sameDay, allProject:[...allUnique], company:companyUserNames.filter(n=>!allUnique.has(n))};
+}, [project.id, data.date, calendarEntries, company]);
+// Parse current technicians as array
+const techList = (data.technicians || '').split(',').map(t=>t.trim()).filter(Boolean);
+const [showAddOther, setShowAddOther] = useState(false);
+const [otherName, setOtherName] = useState('');
+const toggleTech = (name) => {
+  const next = techList.includes(name) ? techList.filter(n=>n!==name) : [...techList, name];
+  setData(p => ({...p, technicians: next.join(', ')}));
+};
+const addOther = () => {
+  if (!otherName.trim()) return;
+  const next = [...techList, otherName.trim()];
+  setData(p => ({...p, technicians: next.join(', ')}));
+  setOtherName(''); setShowAddOther(false);
+};
+
 const save = () => {
   if(!data.whatHappened.trim()) return alert('Describe what happened.');
   const userName = currentUser?.name || '—';
   if (editing) {
-    // Build edit; track field history
     const fields = ['date','type','technicians','whatHappened','howToAvoid'];
     const next = {date:data.date, type:data.type, technicians:data.technicians, whatHappened:data.whatHappened, howToAvoid:data.howToAvoid};
     const textHist = diffSimpleFields(editing, next, fields, userName);
@@ -672,7 +692,77 @@ const save = () => {
   }
   onClose();
 };
-return (<div style={s.overlay} onClick={onClose}><div style={s.modal} onClick={e=>e.stopPropagation()}><div style={s.modalHeader}><div><div style={s.modalKicker}>{editing ? 'Edit' : 'New'} · Incident report</div><div style={s.modalTitle}>{editing ? 'Edit report' : 'Report an event'}</div></div><button style={s.closeBtn} onClick={onClose}>×</button></div><div style={s.modalBody}><label style={s.label}>Type</label><div style={s.incidentTypePicker}>{INCIDENT_TYPES.map(t => { const active = data.type === t.id; return (<div key={t.id} style={{...s.incidentTypeBtn, ...(active ? {...s.incidentTypeBtnActive, borderColor:t.color, background:t.bg} : {})}} onClick={()=>setData(p=>({...p, type:t.id}))}><div style={s.incidentTypeEmoji}>{t.emoji}</div><div style={{...s.incidentTypeLabel, color:active ? t.color : 'var(--text)'}}>{t.label}</div></div>); })}</div><div style={s.row2}><div><label style={s.label}>Date</label><input style={s.input} type="date" value={data.date} onChange={set('date')}/></div><div><label style={s.label}>Job</label><input style={{...s.input, opacity:0.6, cursor:'not-allowed'}} value={editing?.projectName || project.name} disabled/></div></div><label style={s.label}>Technicians involved</label><input style={s.input} value={data.technicians} onChange={set('technicians')} placeholder="Names, comma-separated"/><label style={s.label}>What happened? *</label><textarea style={s.textarea} value={data.whatHappened} onChange={set('whatHappened')} rows={5}/><label style={s.label}>What can be done to avoid it?</label><textarea style={s.textarea} value={data.howToAvoid} onChange={set('howToAvoid')} rows={4}/></div><div style={s.modalFooter}><button style={s.cancelBtn} onClick={onClose}>Cancel</button><button style={s.primaryBtn} onClick={save}>{editing ? 'Save changes' : 'Submit report'}</button></div></div></div>);
+const chip = (label, selected, onClick) => (
+  <button type="button" onClick={onClick} style={{padding:'5px 10px',borderRadius:14,fontSize:11,fontWeight:600,cursor:'pointer',background:selected?'var(--accent)':'var(--bg-raised)',color:selected?'#fff':'var(--text-muted)',border:'1px solid '+(selected?'var(--accent)':'var(--border)'),transition:'all 0.12s'}}>{selected?'✓ ':''}{label}</button>
+);
+
+return (<div style={s.overlay} onClick={onClose}>
+  <div style={s.modal} onClick={e=>e.stopPropagation()}>
+    <div style={s.modalHeader}>
+      <div>
+        <div style={s.modalKicker}>{editing ? 'Edit' : 'New'} · Incident report</div>
+        <div style={s.modalTitle}>{editing ? 'Edit report' : 'Report an event'}</div>
+      </div>
+      <button style={s.closeBtn} onClick={onClose}>×</button>
+    </div>
+    <div style={s.modalBody}>
+      <label style={s.label}>Type</label>
+      <div style={s.incidentTypePicker}>{INCIDENT_TYPES.map(t => { const active = data.type === t.id; return (<div key={t.id} style={{...s.incidentTypeBtn, ...(active ? {...s.incidentTypeBtnActive, borderColor:t.color, background:t.bg} : {})}} onClick={()=>setData(p=>({...p, type:t.id}))}><div style={s.incidentTypeEmoji}>{t.emoji}</div><div style={{...s.incidentTypeLabel, color:active ? t.color : 'var(--text)'}}>{t.label}</div></div>); })}</div>
+      <div style={s.row2}>
+        <div><label style={s.label}>Date</label><input style={s.input} type="date" value={data.date} onChange={set('date')}/></div>
+        <div><label style={s.label}>Job</label><input style={{...s.input, opacity:0.6, cursor:'not-allowed'}} value={editing?.projectName || project.name} disabled/></div>
+      </div>
+      <label style={s.label}>Technicians involved</label>
+      <div style={{padding:'10px',background:'var(--bg-sunken)',borderRadius:7,border:'1px solid var(--border)',marginBottom:10}}>
+        {techSuggestions.sameDay.length > 0 && (
+          <div style={{marginBottom:8}}>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--success)',textTransform:'uppercase',marginBottom:4}}>📅 Scheduled today</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{techSuggestions.sameDay.map(n => chip(n, techList.includes(n), () => toggleTech(n)))}</div>
+          </div>
+        )}
+        {techSuggestions.allProject.filter(n=>!techSuggestions.sameDay.includes(n)).length > 0 && (
+          <div style={{marginBottom:8}}>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',marginBottom:4}}>👥 Project crew</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{techSuggestions.allProject.filter(n=>!techSuggestions.sameDay.includes(n)).map(n => chip(n, techList.includes(n), () => toggleTech(n)))}</div>
+          </div>
+        )}
+        {techSuggestions.company.length > 0 && (
+          <div style={{marginBottom:8}}>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',marginBottom:4}}>🏢 Other company users</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{techSuggestions.company.map(n => chip(n, techList.includes(n), () => toggleTech(n)))}</div>
+          </div>
+        )}
+        {/* Show outsiders that are in techList but not in any list */}
+        {techList.filter(n => !techSuggestions.allProject.includes(n) && !techSuggestions.company.includes(n)).length > 0 && (
+          <div style={{marginBottom:8}}>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--accent-text)',textTransform:'uppercase',marginBottom:4}}>👤 Outsiders</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {techList.filter(n => !techSuggestions.allProject.includes(n) && !techSuggestions.company.includes(n)).map(n => chip(n, true, () => toggleTech(n)))}
+            </div>
+          </div>
+        )}
+        {!showAddOther
+          ? <button type="button" onClick={()=>setShowAddOther(true)} style={{...s.copyBtn,fontSize:10}}>+ Add outsider</button>
+          : (
+            <div style={{display:'flex',gap:6,marginTop:6,alignItems:'end'}}>
+              <input style={{...s.input,marginBottom:0,flex:1}} value={otherName} onChange={e=>setOtherName(e.target.value)} placeholder="Outsider name" autoFocus/>
+              <button type="button" onClick={addOther} style={{...s.primaryBtn,padding:'8px 14px'}}>Add</button>
+              <button type="button" onClick={()=>{setShowAddOther(false);setOtherName('');}} style={{...s.cancelBtn,padding:'8px 14px'}}>✕</button>
+            </div>
+          )
+        }
+      </div>
+      <label style={s.label}>What happened? *</label>
+      <textarea style={s.textarea} value={data.whatHappened} onChange={set('whatHappened')} rows={5}/>
+      <label style={s.label}>What can be done to avoid it?</label>
+      <textarea style={s.textarea} value={data.howToAvoid} onChange={set('howToAvoid')} rows={4}/>
+    </div>
+    <div style={s.modalFooter}>
+      <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
+      <button style={s.primaryBtn} onClick={save}>{editing ? 'Save changes' : 'Submit report'}</button>
+    </div>
+  </div>
+</div>);
 }
 
 function AddMaterialModal({onClose, onSave}) {
@@ -681,24 +771,24 @@ const save = () => { if(!name.trim()) return; onSave({id:'m-'+Date.now().toStrin
 return (<div style={s.overlay} onClick={onClose}><div style={{...s.modal,...s.modalSm}} onClick={e=>e.stopPropagation()}><div style={s.modalHeader}><div><div style={s.modalKicker}>New · Material</div><div style={s.modalTitle}>Add item</div></div><button style={s.closeBtn} onClick={onClose}>×</button></div><div style={s.modalBody}><label style={s.label}>Item *</label><input style={s.input} value={name} onChange={e=>setName(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter'&&name.trim())save();}}/><label style={s.label}>Quantity (optional)</label><input style={s.input} value={qty} onChange={e=>setQty(e.target.value)} placeholder="e.g. 4 × 10L"/></div><div style={s.modalFooter}><button style={s.cancelBtn} onClick={onClose}>Cancel</button><button style={{...s.primaryBtn, opacity:name.trim()?1:0.5}} disabled={!name.trim()} onClick={save}>Add item</button></div></div></div>);
 }
 
-function TimesheetEntryModal({onClose, onSave, crew, projectId, projectName, editing, timesheets, onAddCrew, currentUser, company}) {
+function TimesheetEntryModal({onClose, onSave, crew, projectId, projectName, editing, timesheets, onAddCrew, currentUser, company, calendarEntries}) {
 const isCrew = currentUser?.role === 'crew';
-const companyUsers = (company?.users || []).map(u => u.name);
+const companyUserNames = (company?.users || []).map(u => u.name);
+// Smart workers list: project crew (from calendar) + history of timesheet entries on this project + company users
 const projectWorkers = useMemo(() => {
-  const names = new Set((timesheets||[]).filter(t=>t.projectId===projectId).map(t=>t.workerName));
-  companyUsers.forEach(n => names.add(n));
-  crew.forEach(c => names.add(c.name));
-  return [...names].sort();
-}, [timesheets, projectId, crew, companyUsers]);
-// Find this worker's most recent entry (prefer same project, fall back to any) to autofill times
+  const calendarTechs = getProjectTechniciansFromCalendar(projectId, calendarEntries || []);
+  const tsHistoryNames = new Set((timesheets||[]).filter(t=>t.projectId===projectId).map(t=>t.workerName));
+  const all = new Set([...calendarTechs, ...tsHistoryNames, ...companyUserNames]);
+  crew.forEach(c => all.add(c.name));
+  return [...all].sort();
+}, [timesheets, projectId, crew, companyUserNames, calendarEntries]);
+
 const lastEntryFor = (name) => {
   if (!name) return null;
   const all = (timesheets||[]).filter(t => t.workerName === name);
   if (all.length === 0) return null;
-  // Prefer same project
   const sameProject = all.filter(t => t.projectId === projectId).sort((a,b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
   if (sameProject.length > 0) return sameProject[0];
-  // Fall back to most recent of any project
   return all.sort((a,b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime))[0];
 };
 const initialWorker = editing?.workerName || (isCrew ? currentUser.name : '');
@@ -708,10 +798,14 @@ const [date, setDate] = useState(editing?.date || todayISO());
 const [startTime, setStartTime] = useState(editing?.startTime || initialLast?.startTime || '07:00');
 const [endTime, setEndTime] = useState(editing?.endTime || initialLast?.endTime || '15:30');
 const [description, setDescription] = useState(editing?.description || '');
+const [editComment, setEditComment] = useState('');
+// "Other" / outsider option for worker dropdown
+const [showAddOther, setShowAddOther] = useState(false);
+const [otherName, setOtherName] = useState('');
 
-// When worker changes (managers picking from dropdown), update times to that worker's last entry
 const onWorkerChange = (e) => {
   const name = e.target.value;
+  if (name === '__other__') { setShowAddOther(true); return; }
   setWorkerName(name);
   if (!editing && name) {
     const last = lastEntryFor(name);
@@ -721,16 +815,55 @@ const onWorkerChange = (e) => {
     }
   }
 };
+const addOther = () => {
+  if (!otherName.trim()) return;
+  setWorkerName(otherName.trim());
+  setOtherName(''); setShowAddOther(false);
+};
 
 const hours = calcHours(startTime, endTime);
 const MIN_DESC = 5;
 const descOk = description.trim().length >= MIN_DESC;
+
+// Detect if hours/times were changed when editing
+const timesChanged = editing && (editing.startTime !== startTime || editing.endTime !== endTime || editing.date !== date);
+const COMMENT_MIN = 10;
+const commentOk = !timesChanged || editComment.trim().length >= COMMENT_MIN;
+
 const save = () => {
   if(!workerName) return alert('Select a worker.');
   if(!descOk) return alert(`Description must be at least ${MIN_DESC} characters.`);
-  onSave({ id: editing?.id || 'ts-'+Date.now().toString(36), projectId, projectName, workerName, date, startTime, endTime, hours, description: description.trim(), status: editing?.status || 'pending', createdAt: editing?.createdAt || new Date().toISOString() });
+  if(timesChanged && !commentOk) return alert(`Justification required (min ${COMMENT_MIN} characters) for time changes.`);
+
+  const userName = currentUser?.name || '—';
+  const newEntry = {
+    id: editing?.id || 'ts-'+Date.now().toString(36),
+    projectId, projectName, workerName, date, startTime, endTime, hours,
+    description: description.trim(),
+    status: editing?.status || 'pending',
+    createdAt: editing?.createdAt || new Date().toISOString(),
+    createdBy: editing?.createdBy || userName,
+    editHistory: editing?.editHistory || [],
+    fieldHistory: editing?.fieldHistory || {},
+  };
+
+  if (editing) {
+    const fields = ['workerName','date','startTime','endTime','description'];
+    const next = {workerName, date, startTime, endTime, description: description.trim()};
+    const textHist = diffSimpleFields(editing, next, fields, userName);
+    newEntry.fieldHistory = mergeFieldHistory(editing.fieldHistory, textHist);
+    const changes = fields.filter(f => (editing[f]||'') !== (next[f]||''));
+    if (changes.length > 0) {
+      const auditEntry = {editedAt:new Date().toISOString(), editedBy:userName, fields:changes};
+      if (timesChanged && editComment.trim()) auditEntry.justification = editComment.trim();
+      newEntry.editHistory = [...newEntry.editHistory, auditEntry];
+    }
+  }
+
+  onSave(newEntry);
   onClose();
 };
+
 return (<div style={s.overlay} onClick={onClose}>
   <div style={s.modal} onClick={e=>e.stopPropagation()}>
     <div style={s.modalHeader}>
@@ -744,10 +877,28 @@ return (<div style={s.overlay} onClick={onClose}>
       <label style={s.label}>Worker *</label>
       {isCrew
         ? <input style={{...s.input,opacity:0.7,cursor:'not-allowed'}} value={workerName} disabled/>
-        : <select style={s.input} value={workerName} onChange={onWorkerChange}>
-            <option value="">— Select worker —</option>
-            {projectWorkers.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
+        : (
+          <>
+            <select style={s.input} value={projectWorkers.includes(workerName)?workerName:(workerName?'':'')} onChange={onWorkerChange}>
+              <option value="">— Select worker —</option>
+              {projectWorkers.map(n => <option key={n} value={n}>{n}</option>)}
+              <option value="__other__">+ Other / outsider…</option>
+            </select>
+            {workerName && !projectWorkers.includes(workerName) && (
+              <div style={{padding:'6px 10px',background:'var(--accent-bg)',border:'1px solid var(--accent)',borderRadius:5,fontSize:11,color:'var(--accent-text)',marginTop:-10,marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span>👤 Outsider: <b>{workerName}</b></span>
+                <button type="button" onClick={()=>setWorkerName('')} style={{background:'none',border:'none',color:'var(--accent-text)',cursor:'pointer',fontSize:14,padding:0}}>×</button>
+              </div>
+            )}
+            {showAddOther && (
+              <div style={{padding:'10px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--accent)',marginTop:-10,marginBottom:14,display:'flex',gap:8,alignItems:'end'}}>
+                <div style={{flex:1}}><label style={{...s.label,marginBottom:4}}>Outsider name</label><input style={{...s.input,marginBottom:0}} value={otherName} onChange={e=>setOtherName(e.target.value)} placeholder="e.g. John (subcontractor)" autoFocus/></div>
+                <button type="button" onClick={addOther} style={{...s.primaryBtn,padding:'8px 14px'}}>Add</button>
+                <button type="button" onClick={()=>{setShowAddOther(false);setOtherName('');}} style={{...s.cancelBtn,padding:'8px 14px'}}>✕</button>
+              </div>
+            )}
+          </>
+        )
       }
       <label style={s.label}>Date *</label>
       <input style={s.input} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
@@ -764,16 +915,23 @@ return (<div style={s.overlay} onClick={onClose}>
       <div style={{fontSize:13,color:'var(--accent-text)',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",marginTop:-8,marginBottom:16}}>= {hours} hours</div>
       <label style={s.label}>Description * <span style={{fontWeight:400,textTransform:'none'}}>({description.trim().length}/{MIN_DESC} min chars)</span></label>
       <textarea style={{...s.textarea, borderColor: description.trim().length > 0 && !descOk ? 'var(--warn)' : undefined}} value={description} onChange={e=>setDescription(e.target.value)} rows={3} placeholder={`Brief description (min ${MIN_DESC} chars)...`}/>
+      {timesChanged && (
+        <div style={{padding:'12px 14px',background:'var(--warn-bg)',border:'1px solid var(--warn)',borderRadius:7,marginTop:8}}>
+          <div style={{fontSize:11,fontWeight:700,color:'var(--warn)',fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.2,marginBottom:8}}>⚠ Time/date changed — justification required</div>
+          <textarea style={{...s.textarea,marginBottom:0,borderColor:!commentOk?'var(--warn)':undefined}} value={editComment} onChange={e=>setEditComment(e.target.value)} rows={2} placeholder={`Why are the hours different? (min ${COMMENT_MIN} chars)`}/>
+          <div style={{fontSize:11,color:'var(--text-dim)',marginTop:4,fontFamily:"'JetBrains Mono',monospace"}}>{editComment.trim().length}/{COMMENT_MIN} min chars</div>
+        </div>
+      )}
     </div>
     <div style={s.modalFooter}>
       <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
-      <button style={{...s.primaryBtn, opacity:(workerName&&descOk)?1:0.5}} onClick={save}>{editing?'Save':'Add entry'}</button>
+      <button style={{...s.primaryBtn, opacity:(workerName&&descOk&&commentOk)?1:0.5}} onClick={save}>{editing?'Save':'Add entry'}</button>
     </div>
   </div>
 </div>);
 }
 
-function ProjectTimesheetView({channel, timesheets, onAdd, onConfirm, onDelete, onBulkConfirm, currentUser}) {
+function ProjectTimesheetView({channel, timesheets, onAdd, onEdit, onConfirm, onDelete, onBulkConfirm, currentUser}) {
 const isCrew = currentUser?.role === 'crew';
 const canConfirm = currentUser?.role === 'manager' || currentUser?.role === 'team_leader';
 const entries = useMemo(() => {
@@ -783,7 +941,52 @@ const entries = useMemo(() => {
 }, [timesheets, channel.id, isCrew, currentUser]);
 const totalHours = entries.reduce((s,e)=>s+e.hours, 0); const confirmedHours = entries.filter(e=>e.status==='confirmed').reduce((s,e)=>s+e.hours, 0); const pendingCount = entries.filter(e=>e.status==='pending').length;
 const grouped = useMemo(() => { const map = {}; entries.forEach(e => { (map[e.date] = map[e.date] || []).push(e); }); return Object.entries(map).sort((a,b)=>b[0].localeCompare(a[0])); }, [entries]);
-return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}><div style={s.tsSummary}><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>{isCrew ? 'Your hours' : 'Total hours'}</div><div style={s.tsSummaryValue}>{totalHours.toFixed(1)}<span style={s.tsSummaryUnit}>hrs</span></div></div><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Confirmed</div><div style={{...s.tsSummaryValue,color:'var(--success)'}}>{confirmedHours.toFixed(1)}<span style={s.tsSummaryUnit}>hrs</span></div></div><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Pending</div><div style={{...s.tsSummaryValue,color:'var(--warn)'}}>{pendingCount}<span style={s.tsSummaryUnit}>entries</span></div></div><div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Entries</div><div style={s.tsSummaryValue}>{entries.length}</div></div></div><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,gap:8,flexWrap:'wrap'}}><div style={{fontSize:13,color:'var(--text-dim)'}}>{isCrew ? 'Your hours on this project. Manager confirms after review.' : 'Team leader confirms entries after review.'}</div><div style={{display:'flex',gap:6}}>{canConfirm && pendingCount > 0 && <button style={{...s.copyBtn, color:'var(--success)',borderColor:'var(--success)'}} onClick={onBulkConfirm}>✓ Confirm all pending</button>}<button style={s.primaryBtn} onClick={onAdd}>+ Add entry</button></div></div><div style={{flex:1,overflowY:'auto'}}>{entries.length === 0 ? <div style={{...s.empty,height:'60%'}}><span style={s.emptyIcon}>⏱️</span><span style={s.emptyText}>No timesheet entries yet</span></div> : grouped.map(([date, dayEntries]) => (<div key={date}><div style={s.tsDateGroup}>{formatDate(date)} · {dayEntries.reduce((s,e)=>s+e.hours,0).toFixed(1)} hrs</div>{dayEntries.map(e => { const canEditOwn = !isCrew || e.workerName === currentUser.name; return (<div key={e.id} style={s.tsRow}><div style={s.tsWorker}>👷 {e.workerName}</div><div style={s.tsTime}>{e.startTime} → {e.endTime}</div><div style={s.tsHours}>{e.hours}h</div><div style={s.tsDesc}>{e.description}</div><span style={{...s.tsStatus, ...(e.status==='confirmed'?s.tsConfirmed:s.tsPending), cursor: canConfirm && e.status==='pending' ? 'pointer' : 'default'}} onClick={()=>{if(canConfirm && e.status==='pending') onConfirm(e.id);}}>{e.status==='confirmed'?'✓ Confirmed':'⏳ Pending'}</span>{canEditOwn && e.status === 'pending' && <button onClick={()=>onDelete(e.id)} style={{background:'none',border:'none',color:'var(--text-faint)',cursor:'pointer',fontSize:14,padding:'0 4px'}}>×</button>}</div>); })}</div>))}</div></div>);
+const canEditEntry = (e) => {
+  if (currentUser?.role === 'manager' || currentUser?.role === 'team_leader') return true;
+  if (currentUser?.role === 'crew' && e.workerName === currentUser.name) return true;
+  return false;
+};
+return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}>
+  <div style={s.tsSummary}>
+    <div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>{isCrew ? 'Your hours' : 'Total hours'}</div><div style={s.tsSummaryValue}>{totalHours.toFixed(1)}<span style={s.tsSummaryUnit}>hrs</span></div></div>
+    <div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Confirmed</div><div style={{...s.tsSummaryValue,color:'var(--success)'}}>{confirmedHours.toFixed(1)}<span style={s.tsSummaryUnit}>hrs</span></div></div>
+    <div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Pending</div><div style={{...s.tsSummaryValue,color:'var(--warn)'}}>{pendingCount}<span style={s.tsSummaryUnit}>entries</span></div></div>
+    <div style={s.tsSummaryCard}><div style={s.tsSummaryLabel}>Entries</div><div style={s.tsSummaryValue}>{entries.length}</div></div>
+  </div>
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,gap:8,flexWrap:'wrap'}}>
+    <div style={{fontSize:13,color:'var(--text-dim)'}}>{isCrew ? 'Your hours on this project. Manager confirms after review.' : 'Team leader confirms entries after review.'}</div>
+    <div style={{display:'flex',gap:6}}>
+      {canConfirm && pendingCount > 0 && <button style={{...s.copyBtn, color:'var(--success)',borderColor:'var(--success)'}} onClick={onBulkConfirm}>✓ Confirm all pending</button>}
+      <button style={s.primaryBtn} onClick={onAdd}>+ Add entry</button>
+    </div>
+  </div>
+  <div style={{flex:1,overflowY:'auto'}}>
+    {entries.length === 0
+      ? <div style={{...s.empty,height:'60%'}}><span style={s.emptyIcon}>⏱️</span><span style={s.emptyText}>No timesheet entries yet</span></div>
+      : grouped.map(([date, dayEntries]) => (
+        <div key={date}>
+          <div style={s.tsDateGroup}>{formatDate(date)} · {dayEntries.reduce((s,e)=>s+e.hours,0).toFixed(1)} hrs</div>
+          {dayEntries.map(e => {
+            const canEdit = canEditEntry(e);
+            const hasEdits = (e.editHistory || []).length > 0;
+            return (<div key={e.id} style={s.tsRow}>
+              <div style={s.tsWorker}>👷 {e.workerName}</div>
+              <div style={s.tsTime}>{e.startTime} → {e.endTime}</div>
+              <div style={s.tsHours}>{e.hours}h</div>
+              <div style={s.tsDesc}>
+                {e.description}
+                {hasEdits && <span style={{marginLeft:6,fontSize:9,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--warn)',background:'var(--warn-bg)',padding:'1px 5px',borderRadius:3,border:'1px solid var(--warn)',textTransform:'uppercase',letterSpacing:0.2}}>edited ×{e.editHistory.length}</span>}
+              </div>
+              <span style={{...s.tsStatus, ...(e.status==='confirmed'?s.tsConfirmed:s.tsPending), cursor: canConfirm && e.status==='pending' ? 'pointer' : 'default'}} onClick={()=>{if(canConfirm && e.status==='pending') onConfirm(e.id);}}>{e.status==='confirmed'?'✓ Confirmed':'⏳ Pending'}</span>
+              {canEdit && onEdit && <button onClick={()=>onEdit(e)} style={{background:'var(--bg-raised)',border:'1px solid var(--border)',borderRadius:5,padding:'3px 8px',fontSize:10,fontWeight:600,color:'var(--text-muted)',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",letterSpacing:0.2}}>✎</button>}
+              {canEdit && e.status === 'pending' && <button onClick={()=>onDelete(e.id)} style={{background:'none',border:'none',color:'var(--text-faint)',cursor:'pointer',fontSize:14,padding:'0 4px'}}>×</button>}
+            </div>);
+          })}
+        </div>
+      ))
+    }
+  </div>
+</div>);
 }
 
 function TimesheetOverviewView({timesheets, crew, allJobs}) {
@@ -1237,15 +1440,44 @@ return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}>
 </div>);
 }
 
-function ToolboxFormModal({onClose, onSave, project, company, currentUser, editing}) {
+function ToolboxFormModal({onClose, onSave, project, company, currentUser, editing, calendarEntries}) {
 const [date, setDate] = useState(editing?.date || todayISO());
-const companyUsers = (company?.users || []).map(u => u.name);
-const [attendees, setAttendees] = useState(editing?.attendees || (currentUser ? [currentUser.name] : []));
+// Get technicians: those scheduled today + those from this project ever + company users (fallback)
+const techSuggestions = useMemo(() => {
+  const {sameDay, allProject} = getSuggestedTechniciansForDate(project.id, date, calendarEntries || []);
+  const companyUserNames = (company?.users || []).map(u => u.name);
+  // Build suggestion order: today's scheduled (highlighted) + project-wide + rest of company
+  const allUnique = new Set([...sameDay, ...allProject]);
+  return {
+    sameDay,
+    allProject: [...allUnique],
+    company: companyUserNames.filter(n => !allUnique.has(n)),
+  };
+}, [project.id, date, calendarEntries, company]);
+const allKnownNames = useMemo(() => {
+  const s = new Set([...techSuggestions.allProject, ...techSuggestions.company]);
+  return [...s];
+}, [techSuggestions]);
+const [attendees, setAttendees] = useState(editing?.attendees || (currentUser ? [currentUser.name] : (techSuggestions.sameDay.length > 0 ? techSuggestions.sameDay : [])));
+const [outsiders, setOutsiders] = useState(editing?.outsiders || []); // [{name, description}]
+const [showAddOther, setShowAddOther] = useState(false);
+const [otherName, setOtherName] = useState('');
+const [otherDescription, setOtherDescription] = useState('');
 const [todaysWork, setTodaysWork] = useState(editing?.todaysWork || '');
 const [hazards, setHazards] = useState(editing?.hazards || [{hazard:'',control:''}]);
 const [signers, setSigners] = useState(editing?.signers || [{name:currentUser?.name || '', signed: false, initials:''}]);
 
 const toggleAttendee = (name) => setAttendees(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+const addOutsider = () => {
+  if (!otherName.trim()) return;
+  setOutsiders(p => [...p, {name: otherName.trim(), description: otherDescription.trim()}]);
+  setAttendees(p => [...p, otherName.trim()]);
+  setOtherName(''); setOtherDescription(''); setShowAddOther(false);
+};
+const removeOutsider = (name) => {
+  setOutsiders(p => p.filter(o => o.name !== name));
+  setAttendees(p => p.filter(n => n !== name));
+};
 const addHazard = () => setHazards(p => [...p, {hazard:'',control:''}]);
 const removeHazard = (i) => setHazards(p => p.filter((_,j) => j !== i));
 const setHz = (i, key, val) => setHazards(p => p.map((h,j) => j===i ? {...h, [key]:val} : h));
@@ -1268,6 +1500,7 @@ const save = () => {
     teamLeader: project.teamLeader,
     date,
     attendees,
+    outsiders,
     todaysWork: todaysWork.trim(),
     hazards: trimmedHazards,
     signers,
@@ -1335,12 +1568,58 @@ return (<div style={s.overlay} onClick={onClose}>
       </div>
 
       {sectionTitle(2, 'Attendees')}
-      {companyUsers.length === 0
-        ? <div style={{padding:'10px 12px',background:'var(--warn-bg)',border:'1px solid var(--warn)',borderRadius:6,fontSize:12,color:'var(--warn)',marginBottom:18}}>No team members yet. Add users in Settings → Users.</div>
-        : <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:18,padding:'10px',background:'var(--bg-sunken)',borderRadius:7,border:'1px solid var(--border)'}}>
-            {companyUsers.map(name => chip(name, attendees.includes(name), () => toggleAttendee(name)))}
+      <div style={{marginBottom:18}}>
+        {techSuggestions.sameDay.length > 0 && (
+          <div style={{marginBottom:10}}>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--success)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:6}}>📅 Scheduled today</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',padding:'10px',background:'var(--success-bg)',borderRadius:7,border:'1px solid var(--success)'}}>
+              {techSuggestions.sameDay.map(name => chip(name, attendees.includes(name), () => toggleAttendee(name)))}
+            </div>
           </div>
-      }
+        )}
+        {techSuggestions.allProject.filter(n => !techSuggestions.sameDay.includes(n)).length > 0 && (
+          <div style={{marginBottom:10}}>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:6}}>👥 Other project crew</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',padding:'10px',background:'var(--bg-sunken)',borderRadius:7,border:'1px solid var(--border)'}}>
+              {techSuggestions.allProject.filter(n => !techSuggestions.sameDay.includes(n)).map(name => chip(name, attendees.includes(name), () => toggleAttendee(name)))}
+            </div>
+          </div>
+        )}
+        {techSuggestions.company.length > 0 && (
+          <div style={{marginBottom:10}}>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:6}}>🏢 Other company users</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',padding:'10px',background:'var(--bg-raised)',borderRadius:7,border:'1px dashed var(--border-strong)'}}>
+              {techSuggestions.company.map(name => chip(name, attendees.includes(name), () => toggleAttendee(name)))}
+            </div>
+          </div>
+        )}
+        {outsiders.length > 0 && (
+          <div style={{marginBottom:10}}>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--accent-text)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:6}}>👤 Outsiders</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',padding:'10px',background:'var(--accent-bg)',borderRadius:7,border:'1px solid var(--accent)'}}>
+              {outsiders.map(o => (
+                <span key={o.name} style={{padding:'6px 10px',borderRadius:14,fontSize:12,fontWeight:600,background:'var(--accent)',color:'#fff',display:'inline-flex',alignItems:'center',gap:6,border:'1px solid var(--accent)'}}>
+                  ✓ {o.name}{o.description && <span style={{opacity:0.85,fontSize:10}}>· {o.description}</span>}
+                  <button type="button" onClick={()=>removeOutsider(o.name)} style={{background:'rgba(255,255,255,0.3)',border:'none',color:'#fff',borderRadius:'50%',width:16,height:16,fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>×</button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {!showAddOther ? (
+          <button type="button" onClick={()=>setShowAddOther(true)} style={{...s.copyBtn,marginTop:6,fontSize:11}}>+ Add outsider / external person</button>
+        ) : (
+          <div style={{padding:'10px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--accent)',marginTop:6,display:'grid',gridTemplateColumns:'1fr 1fr auto auto',gap:8,alignItems:'end'}}>
+            <div><label style={{...s.label,marginBottom:4}}>Name</label><input style={{...s.input,marginBottom:0}} value={otherName} onChange={e=>setOtherName(e.target.value)} placeholder="Outsider name" autoFocus/></div>
+            <div><label style={{...s.label,marginBottom:4}}>Description (company / role)</label><input style={{...s.input,marginBottom:0}} value={otherDescription} onChange={e=>setOtherDescription(e.target.value)} placeholder="Engineer, RIVAS Ltd"/></div>
+            <button type="button" onClick={addOutsider} style={{...s.primaryBtn,padding:'8px 14px'}}>Add</button>
+            <button type="button" onClick={()=>{setShowAddOther(false);setOtherName('');setOtherDescription('');}} style={{...s.cancelBtn,padding:'8px 14px'}}>✕</button>
+          </div>
+        )}
+        {allKnownNames.length === 0 && outsiders.length === 0 && (
+          <div style={{padding:'10px 12px',background:'var(--warn-bg)',border:'1px solid var(--warn)',borderRadius:6,fontSize:12,color:'var(--warn)',marginTop:8}}>No technicians yet. Schedule them in the Calendar or add an outsider.</div>
+        )}
+      </div>
 
       {sectionTitle(3, "Today's work")}
       <textarea style={{...s.textarea,marginBottom:18}} value={todaysWork} onChange={e=>setTodaysWork(e.target.value)} placeholder="What is the team doing today?" rows={4}/>
@@ -1372,7 +1651,7 @@ return (<div style={s.overlay} onClick={onClose}>
           onChange={(updated)=>setSigners(p=>p.map((x,j)=>j===i?updated:x))}
           onRemove={()=>removeSigner(i)}
           canRemove={signers.length > 1}
-          companyUsers={companyUsers}
+          companyUsers={[...allKnownNames, ...outsiders.map(o=>o.name)]}
           alreadyPickedNames={signers.filter((_,j)=>j!==i).map(x=>x.name).filter(Boolean)}
         />
       ))}
@@ -1555,6 +1834,9 @@ function FieldWithHistory({label, value, history, emoji, multiline}) {
       </div>
     );
   }
+  // Has history. Was the field REMOVED (current empty, but had value)?
+  const isRemoved = (!value || !String(value).trim()) && hist.some(h => h.value && String(h.value).trim());
+  const wasEmpty = (v) => !v || !String(v).trim();
   return (
     <div style={{marginBottom:multiline?8:4}}>
       {label && (
@@ -1565,46 +1847,181 @@ function FieldWithHistory({label, value, history, emoji, multiline}) {
         </div>
       )}
       <div style={{padding:multiline?'10px 12px':'6px 10px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',fontSize:13,lineHeight:1.55}}>
-        {hist.map((h, i) => (
-          <div key={i} style={{textDecoration:'line-through',color:'var(--text-faint)',whiteSpace:multiline?'pre-wrap':'normal',marginBottom:4}}>
-            {h.value || <em>(empty)</em>}
-            <span style={{textDecoration:'none',marginLeft:8,fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)'}}>· {h.editedBy} · {formatTime(h.editedAt)}</span>
+        {hist.map((h, i) => {
+          // Determine: was this version REMOVED (next version is empty) or UPDATED?
+          const nextVal = i < hist.length - 1 ? hist[i+1].value : value;
+          const wasReplacedByEmpty = wasEmpty(nextVal);
+          return (
+            <div key={i} style={{
+              color: wasReplacedByEmpty ? 'var(--text-faint)' : 'var(--text-muted)',
+              textDecoration: wasReplacedByEmpty ? 'line-through' : 'none',
+              whiteSpace: multiline ? 'pre-wrap' : 'normal',
+              marginBottom: 4,
+              opacity: 0.85,
+            }}>
+              {h.value || <em>(empty)</em>}
+              <span style={{textDecoration:'none',marginLeft:8,fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)'}}>
+                {wasReplacedByEmpty ? '✕ removed' : '↳ updated'} by {h.editedBy} · {formatTime(h.editedAt)}
+              </span>
+            </div>
+          );
+        })}
+        {isRemoved ? (
+          <div style={{fontSize:11,color:'var(--text-faint)',fontStyle:'italic'}}>(field cleared)</div>
+        ) : (
+          <div style={{color:'var(--text)',whiteSpace:multiline?'pre-wrap':'normal',fontWeight:multiline?'normal':500}}>
+            {value || <em style={{color:'var(--text-faint)'}}>(empty)</em>}
+            <span style={{marginLeft:8,fontSize:9,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--success)',textTransform:'uppercase',letterSpacing:0.2}}>· current</span>
           </div>
-        ))}
-        <div style={{color:'var(--text)',whiteSpace:multiline?'pre-wrap':'normal',fontWeight:multiline?'normal':500}}>
-          {value || <em style={{color:'var(--text-faint)'}}>(empty)</em>}
-          <span style={{marginLeft:8,fontSize:9,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--success)',textTransform:'uppercase',letterSpacing:0.2}}>· current</span>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-function ListWithHistory({label, items, history, renderItem}) {
-  // For attendees/hazards/etc. Compares each version as a whole.
+function ListWithHistory({label, items, history, renderItem, itemKey}) {
+  // history is an array of {value: previousList, editedAt, editedBy}
+  // We compute per-item diffs across all versions
   const hist = history || [];
-  const renderArr = (arr, isCurrent, version) => (
-    <div style={{padding:'8px 10px',background:isCurrent?'var(--bg-raised)':'transparent',border:isCurrent?'1px solid var(--border)':'1px dashed var(--border)',borderRadius:6,marginBottom:6,opacity:isCurrent?1:0.6}}>
-      {!isCurrent && <div style={{fontSize:9,fontFamily:"'JetBrains Mono',monospace",color:'var(--text-dim)',textTransform:'uppercase',marginBottom:4,letterSpacing:0.2}}>← {version.editedBy} · {formatTime(version.editedAt)}</div>}
-      <div style={{display:'flex',gap:6,flexWrap:'wrap',textDecoration:isCurrent?'none':'line-through'}}>
-        {(arr || []).length === 0
-          ? <span style={{color:'var(--text-faint)',fontStyle:'italic',fontSize:12}}>(empty)</span>
-          : (arr || []).map((item, i) => <span key={i}>{renderItem(item, i, isCurrent)}</span>)
+  const keyOf = itemKey || ((it) => typeof it === 'string' ? it : JSON.stringify(it));
+  const currentItems = items || [];
+
+  // Build full picture: for each unique item, when it was added and (if applicable) removed
+  // Strategy: walk versions chronologically: hist[0] = oldest, hist[hist.length-1] = newest before current
+  // versions = [oldest, ..., previous-to-current]; current = items
+  const versions = hist.map(h => h.value || []);
+  const meta = hist.map(h => ({editedAt: h.editedAt, editedBy: h.editedBy}));
+  const allVersions = [...versions, currentItems]; // last = current
+  const allMeta = [...meta, null]; // null = current state
+
+  // Step 1: collect all unique items ever seen (by key) and find their lifecycle
+  const lifecycle = new Map(); // key -> {item, addedAt, addedBy, removedAt, removedBy, presentInCurrent}
+  allVersions.forEach((version, vIdx) => {
+    const versionKeys = new Set();
+    (version || []).forEach((it) => {
+      const k = keyOf(it);
+      versionKeys.add(k);
+      if (!lifecycle.has(k)) {
+        const m = vIdx === 0 ? null : allMeta[vIdx];
+        lifecycle.set(k, {
+          item: it,
+          addedAt: m?.editedAt,
+          addedBy: m?.editedBy,
+          inFirstVersion: vIdx === 0,
+          presentInCurrent: vIdx === allVersions.length - 1,
+          removedAt: null,
+          removedBy: null,
+        });
+      } else {
+        // Update item ref to latest version of this item
+        lifecycle.get(k).item = it;
+        if (vIdx === allVersions.length - 1) lifecycle.get(k).presentInCurrent = true;
+      }
+    });
+    // Items that were in the previous version but not this one → removed at this point
+    if (vIdx > 0) {
+      const prevVersion = allVersions[vIdx - 1];
+      (prevVersion || []).forEach((it) => {
+        const k = keyOf(it);
+        if (!versionKeys.has(k) && lifecycle.has(k) && !lifecycle.get(k).removedAt) {
+          // Was present in previous version, gone now
+          const m = allMeta[vIdx];
+          if (m) {
+            lifecycle.get(k).removedAt = m.editedAt;
+            lifecycle.get(k).removedBy = m.editedBy;
+          }
         }
-      </div>
-      {isCurrent && <div style={{marginTop:4,fontSize:9,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--success)',textTransform:'uppercase',letterSpacing:0.2}}>· current</div>}
-    </div>
-  );
+      });
+    }
+  });
+  // Mark items present in current (in case they were re-added)
+  const currentKeys = new Set(currentItems.map(it => keyOf(it)));
+  lifecycle.forEach((lc, k) => {
+    lc.presentInCurrent = currentKeys.has(k);
+    if (lc.presentInCurrent) {
+      // Reset removed marker if item is back
+      lc.removedAt = null;
+      lc.removedBy = null;
+    }
+  });
+
+  const ordered = [...lifecycle.values()];
+  // Sort: present items first (in current order), then removed items
+  const orderedCurrent = currentItems.map(it => {
+    const k = keyOf(it);
+    return lifecycle.get(k);
+  }).filter(Boolean);
+  const orderedRemoved = ordered.filter(lc => !lc.presentInCurrent);
+  const finalList = [...orderedCurrent, ...orderedRemoved];
+
   return (
     <div style={{marginBottom:8}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-        <span style={{...s.modalKicker}}>{label}</span>
-        {hist.length > 0 && <span style={{fontSize:9,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--warn)',background:'var(--warn-bg)',padding:'2px 6px',borderRadius:3,border:'1px solid var(--warn)',textTransform:'uppercase',letterSpacing:0.2}}>{hist.length} edit{hist.length===1?'':'s'}</span>}
-      </div>
-      {hist.map((h, i) => renderArr(h.value, false, h))}
-      {renderArr(items, true)}
+      {label && (
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+          <span style={{...s.modalKicker}}>{label}</span>
+          {hist.length > 0 && <span style={{fontSize:9,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--warn)',background:'var(--warn-bg)',padding:'2px 6px',borderRadius:3,border:'1px solid var(--warn)',textTransform:'uppercase',letterSpacing:0.2}}>{hist.length} edit{hist.length===1?'':'s'}</span>}
+        </div>
+      )}
+      {finalList.length === 0 && <div style={{padding:'8px 10px',background:'var(--bg-raised)',borderRadius:6,fontSize:12,color:'var(--text-faint)',fontStyle:'italic',border:'1px solid var(--border)'}}>(empty)</div>}
+      {finalList.map((lc, i) => {
+        const isRemoved = !lc.presentInCurrent;
+        const wasAdded = !lc.inFirstVersion && lc.addedAt;
+        return (
+          <div key={i} style={{position:'relative',marginBottom:4}}>
+            {wasAdded && lc.presentInCurrent && (
+              <div style={{fontSize:9,fontFamily:"'JetBrains Mono',monospace",color:'var(--success)',marginBottom:3,letterSpacing:0.2}}>
+                <b>+ ADDED</b> · {lc.addedBy} · {formatTime(lc.addedAt)}
+              </div>
+            )}
+            {isRemoved && lc.removedAt && (
+              <div style={{fontSize:9,fontFamily:"'JetBrains Mono',monospace",color:'var(--danger)',marginBottom:3,letterSpacing:0.2}}>
+                <b>− REMOVED</b> · {lc.removedBy} · {formatTime(lc.removedAt)}
+              </div>
+            )}
+            <div style={{
+              opacity: isRemoved ? 0.5 : 1,
+              textDecoration: isRemoved ? 'line-through' : 'none',
+              border: wasAdded && lc.presentInCurrent ? '1px solid var(--success)' : (isRemoved ? '1px dashed var(--danger)' : '1px solid var(--border)'),
+              borderRadius: 6,
+            }}>
+              {renderItem(lc.item, i, !isRemoved)}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
+}
+
+// ── PROJECT TECHNICIANS HELPERS ──────────────────────────────────────────
+// Returns the list of technician names that have ever been assigned to a project
+// via Calendar bookings. This is the "project crew database".
+function getProjectTechniciansFromCalendar(projectId, calendarEntries) {
+  const names = new Set();
+  (calendarEntries || []).forEach(entry => {
+    if (entry.projectId !== projectId) return;
+    // Modern bookings store technicians as comma-separated names
+    if (entry.technicians) {
+      entry.technicians.split(',').map(t => t.trim()).filter(Boolean).forEach(n => names.add(n));
+    }
+  });
+  return [...names].sort();
+}
+
+// Returns suggested technicians for a specific date+project (those scheduled that day),
+// plus fallback to all-project technicians.
+function getSuggestedTechniciansForDate(projectId, date, calendarEntries) {
+  const sameDay = new Set();
+  (calendarEntries || []).forEach(entry => {
+    if (entry.projectId !== projectId) return;
+    if ((entry.dates || []).includes(date) && entry.technicians) {
+      entry.technicians.split(',').map(t => t.trim()).filter(Boolean).forEach(n => sameDay.add(n));
+    }
+  });
+  return {
+    sameDay: [...sameDay].sort(),
+    allProject: getProjectTechniciansFromCalendar(projectId, calendarEntries),
+  };
 }
 
 function loadEmailJsOnce() {
@@ -1662,7 +2079,7 @@ return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}>
 </div>);
 }
 
-function RamsFormModal({onClose, onSave, project, company, currentUser, latestRams, editing}) {
+function RamsFormModal({onClose, onSave, project, company, currentUser, latestRams, editing, calendarEntries}) {
 // Inherit from project + latest RAMS (form continuity)
 const inherit = editing || latestRams || {};
 const [date, setDate] = useState(editing?.date || todayISO());
@@ -1678,7 +2095,6 @@ const [sending, setSending] = useState(false);
 const [sendTo, setSendTo] = useState('');
 
 // Inherited from project + company, but EDITABLE per-RAMS
-// When editing an existing RAMS, use stored values; when new, use project values
 const [projectName, setProjectName] = useState(editing?.projectName ?? project.name);
 const [location, setLocation] = useState(editing?.location ?? (project.address || ''));
 const [teamLeader, setTeamLeader] = useState(editing?.teamLeader ?? (project.teamLeader || ''));
@@ -1696,7 +2112,13 @@ const removeSigner = (i) => setSigners(p => p.filter((_,j) => j !== i));
 const setSgn = (i, key, val) => setSigners(p => p.map((sg,j) => j===i ? {...sg, [key]:val} : sg));
 const allSigned = signers.length > 0 && signers.every(sg => sg.signed && sg.initials.trim() && sg.name.trim());
 
-const companyUsers = (company?.users || []).map(u => u.name);
+// Smart name list: project crew (from calendar) + company users + signers picked already
+const allKnownNames = useMemo(() => {
+  const projectNames = getProjectTechniciansFromCalendar(project.id, calendarEntries || []);
+  const companyNames = (company?.users || []).map(u => u.name);
+  return [...new Set([...projectNames, ...companyNames])];
+}, [project.id, calendarEntries, company]);
+const companyUsers = allKnownNames;
 
 const buildRams = (sendStatus = false) => {
   const trimmedHazards = hazards.filter(h => h.hazard.trim() || h.risk.trim() || h.control.trim());
@@ -2144,7 +2566,7 @@ return (<div style={{maxWidth:560}}>
 </div>);
 }
 
-function ThreadView({channel, thread, notes, setNotes, allChannels, incidents, onIncidentSubmit, onIncidentDelete, onIncidentEdit, onMentionClick, onJumpToProject, onUpdateMaterials, onAddMaterial, calendarEntries, onNewBooking, onEditBooking, onDeleteBooking, getCategory, allJobs, timesheets, onAddTimesheet, onConfirmTimesheet, onDeleteTimesheet, onBulkConfirmTimesheet, crew, onAddCrew, onRemoveCrew, isMobile, company, currentUser, onUpdateCompany, toolboxes, onNewToolbox, onViewToolbox, onDeleteToolbox, ramsEntries, onNewRams, onViewRams, onDeleteRams}) {
+function ThreadView({channel, thread, notes, setNotes, allChannels, incidents, onIncidentSubmit, onIncidentDelete, onIncidentEdit, onMentionClick, onJumpToProject, onUpdateMaterials, onAddMaterial, calendarEntries, onNewBooking, onEditBooking, onDeleteBooking, getCategory, allJobs, timesheets, onAddTimesheet, onEditTimesheet, onConfirmTimesheet, onDeleteTimesheet, onBulkConfirmTimesheet, crew, onAddCrew, onRemoveCrew, isMobile, company, currentUser, onUpdateCompany, toolboxes, onNewToolbox, onViewToolbox, onDeleteToolbox, ramsEntries, onNewRams, onViewRams, onDeleteRams}) {
 if(channel.type === 'plain') { if(channel.name === '📢announcements') { return <AnnouncementsView channel={channel} notes={notes} setNotes={setNotes} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>; } return <NotesFeed channelId={channel.id} threadId="main" notes={notes} setNotes={setNotes} placeholder={`Post in ${channel.name}... (type # to mention)`} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>; }
 if(channel.type === 'materials') return <MaterialsView channel={channel} onUpdate={onUpdateMaterials} onAdd={onAddMaterial}/>;
 if(channel.type === 'calendar') return <CalendarView entries={calendarEntries} jobChannels={allJobs} allChannels={allChannels} getCategory={getCategory} onNewBooking={onNewBooking} onEditBooking={onEditBooking} onDeleteBooking={onDeleteBooking} onJumpToProject={onJumpToProject} onMentionClick={onMentionClick} company={company}/>;
@@ -2155,7 +2577,7 @@ if(channel.type === 'roster') return <CrewRosterView crew={crew} onAdd={onAddCre
 if(channel.type === 'users') return <UsersView company={company} onUpdateCompany={onUpdateCompany} currentUser={currentUser}/>;
 if(channel.type === 'company-info') return <CompanyInfoView company={company} onUpdateCompany={onUpdateCompany}/>;
 if(thread.id === 'info') return <InfoDisplay channel={channel}/>;
-if(thread.id === 'timesheet') return <ProjectTimesheetView channel={channel} timesheets={timesheets} onAdd={onAddTimesheet} onConfirm={onConfirmTimesheet} onDelete={onDeleteTimesheet} onBulkConfirm={onBulkConfirmTimesheet} currentUser={currentUser}/>;
+if(thread.id === 'timesheet') return <ProjectTimesheetView channel={channel} timesheets={timesheets} onAdd={onAddTimesheet} onEdit={onEditTimesheet} onConfirm={onConfirmTimesheet} onDelete={onDeleteTimesheet} onBulkConfirm={onBulkConfirmTimesheet} currentUser={currentUser}/>;
 if(thread.id === 'incidents') return <ProjectIncidentsView channel={channel} incidents={incidents} allChannels={allChannels} onMentionClick={onMentionClick} onAdd={onIncidentSubmit} onDelete={onIncidentDelete} onEdit={onIncidentEdit} currentUser={currentUser}/>;
 if(thread.id === 'toolbox') return <ToolboxView project={channel} toolboxes={toolboxes} onNew={onNewToolbox} onView={onViewToolbox} onDelete={onDeleteToolbox} currentUser={currentUser}/>;
 if(thread.id === 'rams') return <RamsView project={channel} ramsEntries={ramsEntries} onNew={onNewRams} onView={onViewRams} onDelete={onDeleteRams} currentUser={currentUser}/>;
@@ -2495,7 +2917,7 @@ return (<div style={s.app}>
       </div>
     )}
     <div style={contentStyle}>
-      <ThreadView channel={channel} thread={currentThread} notes={notes} setNotes={setNotes} allChannels={allChannelsIncludingDynamic} incidents={incidents} onIncidentSubmit={() => setIncidentModal({})} onIncidentDelete={deleteIncident} onIncidentEdit={(inc)=>setIncidentModal({editing:inc})} onMentionClick={handleMentionClick} onJumpToProject={selectChannel} onUpdateMaterials={updateMaterials} onAddMaterial={() => setShowAddMaterial(true)} calendarEntries={calendarEntries || []} onNewBooking={(date) => setBookingModal({defaultDate: date})} onEditBooking={(entry) => setBookingModal({editing: entry})} onDeleteBooking={deleteBooking} getCategory={getCategory} allJobs={allJobs} timesheets={timesheets || []} onAddTimesheet={() => setShowTimesheetModal({projectId:channel.id, projectName:channel.name})} onConfirmTimesheet={confirmTimesheetEntry} onDeleteTimesheet={deleteTimesheetEntry} onBulkConfirmTimesheet={bulkConfirmTimesheet} crew={crew} onAddCrew={addCrew} onRemoveCrew={removeCrew} isMobile={isMobile} company={company} currentUser={currentUser} onUpdateCompany={onUpdateCompany} toolboxes={toolboxes} onNewToolbox={()=>setToolboxModal({})} onViewToolbox={(tb)=>setViewToolbox(tb)} onDeleteToolbox={deleteToolbox} ramsEntries={ramsEntries} onNewRams={()=>setRamsModal({})} onViewRams={(r)=>setViewRams(r)} onDeleteRams={deleteRams}/>
+      <ThreadView channel={channel} thread={currentThread} notes={notes} setNotes={setNotes} allChannels={allChannelsIncludingDynamic} incidents={incidents} onIncidentSubmit={() => setIncidentModal({})} onIncidentDelete={deleteIncident} onIncidentEdit={(inc)=>setIncidentModal({editing:inc})} onMentionClick={handleMentionClick} onJumpToProject={selectChannel} onUpdateMaterials={updateMaterials} onAddMaterial={() => setShowAddMaterial(true)} calendarEntries={calendarEntries || []} onNewBooking={(date) => setBookingModal({defaultDate: date})} onEditBooking={(entry) => setBookingModal({editing: entry})} onDeleteBooking={deleteBooking} getCategory={getCategory} allJobs={allJobs} timesheets={timesheets || []} onAddTimesheet={() => setShowTimesheetModal({projectId:channel.id, projectName:channel.name})} onEditTimesheet={(e)=>setShowTimesheetModal({projectId:e.projectId, projectName:e.projectName, editing:e})} onConfirmTimesheet={confirmTimesheetEntry} onDeleteTimesheet={deleteTimesheetEntry} onBulkConfirmTimesheet={bulkConfirmTimesheet} crew={crew} onAddCrew={addCrew} onRemoveCrew={removeCrew} isMobile={isMobile} company={company} currentUser={currentUser} onUpdateCompany={onUpdateCompany} toolboxes={toolboxes} onNewToolbox={()=>setToolboxModal({})} onViewToolbox={(tb)=>setViewToolbox(tb)} onDeleteToolbox={deleteToolbox} ramsEntries={ramsEntries} onNewRams={()=>setRamsModal({})} onViewRams={(r)=>setViewRams(r)} onDeleteRams={deleteRams}/>
     </div>
   </>)}
 </div>
@@ -2511,14 +2933,14 @@ return (<div style={s.app}>
     ? d.channels.find(c => c.id === editingInc.projectId) || {id: editingInc.projectId, name: editingInc.projectName, address: editingInc.projectAddress, teamLeader: editingInc.teamLeader}
     : channel;
   if (!incProject || (incProject.type && incProject.type !== 'job')) return null;
-  return <IncidentFormModal onClose={() => setIncidentModal(null)} onSave={(inc)=>{submitIncident(inc); setIncidentModal(null);}} project={incProject} editing={editingInc} currentUser={currentUser}/>;
+  return <IncidentFormModal onClose={() => setIncidentModal(null)} onSave={(inc)=>{submitIncident(inc); setIncidentModal(null);}} project={incProject} editing={editingInc} currentUser={currentUser} calendarEntries={calendarEntries||[]} company={company}/>;
 })()}
 {showAddMaterial && <AddMaterialModal onClose={() => setShowAddMaterial(false)} onSave={addMaterial}/>}
 {bookingModal && (<CalendarBookingModal onClose={() => setBookingModal(null)} onSave={saveBooking} jobChannels={allJobs.filter(j => j.status !== 'done')} allChannels={allChannelsIncludingDynamic} getCategory={getCategory} editing={bookingModal.editing} defaultDate={bookingModal.defaultDate} company={company}/>)}
-{showTimesheetModal && (<TimesheetEntryModal onClose={() => setShowTimesheetModal(null)} onSave={(entry)=>{saveTimesheetEntry(entry); setShowTimesheetModal(null);}} crew={crew} projectId={showTimesheetModal.projectId} projectName={showTimesheetModal.projectName} editing={showTimesheetModal.editing} timesheets={timesheets || []} onAddCrew={addCrew} currentUser={currentUser} company={company}/>)}
-{toolboxModal && channel && channel.type === 'job' && (<ToolboxFormModal onClose={()=>setToolboxModal(null)} onSave={saveToolbox} project={channel} company={company} currentUser={currentUser} editing={toolboxModal.editing}/>)}
+{showTimesheetModal && (<TimesheetEntryModal onClose={() => setShowTimesheetModal(null)} onSave={(entry)=>{saveTimesheetEntry(entry); setShowTimesheetModal(null);}} crew={crew} projectId={showTimesheetModal.projectId} projectName={showTimesheetModal.projectName} editing={showTimesheetModal.editing} timesheets={timesheets || []} onAddCrew={addCrew} currentUser={currentUser} company={company} calendarEntries={calendarEntries||[]}/>)}
+{toolboxModal && channel && channel.type === 'job' && (<ToolboxFormModal onClose={()=>setToolboxModal(null)} onSave={saveToolbox} project={channel} company={company} currentUser={currentUser} editing={toolboxModal.editing} calendarEntries={calendarEntries||[]}/>)}
 {viewToolbox && (<ToolboxDetailModal toolbox={viewToolbox} onClose={()=>setViewToolbox(null)} onEdit={(tb)=>{setToolboxModal({editing:tb});setViewToolbox(null);}} currentUser={currentUser}/>)}
-{ramsModal && channel && channel.type === 'job' && (<RamsFormModal onClose={()=>setRamsModal(null)} onSave={saveRams} project={channel} company={company} currentUser={currentUser} latestRams={latestRamsForProject(channel.id)} editing={ramsModal.editing}/>)}
+{ramsModal && channel && channel.type === 'job' && (<RamsFormModal onClose={()=>setRamsModal(null)} onSave={saveRams} project={channel} company={company} currentUser={currentUser} latestRams={latestRamsForProject(channel.id)} editing={ramsModal.editing} calendarEntries={calendarEntries||[]}/>)}
 {viewRams && (<RamsDetailModal rams={viewRams} onClose={()=>setViewRams(null)} onEdit={(r)=>{setRamsModal({editing:r});setViewRams(null);}} currentUser={currentUser}/>)}
 </div>);
 }
