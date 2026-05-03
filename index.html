@@ -620,10 +620,10 @@ const handleSave = () => { const channel = {...data, id: editing?.id || 'ch-'+Da
 return (<div style={s.overlay} onClick={onClose}><div style={s.modal} onClick={e=>e.stopPropagation()}><div style={s.modalHeader}><div><div style={s.modalKicker}>{editing ? 'Edit' : 'New'} · Job Channel</div><div style={s.modalTitle}>{editing ? 'Edit project' : 'New project'}</div><div style={{display:'flex',gap:6,marginTop:10,alignItems:'center'}}>{steps.map((st,i) => (<span key={i} style={{...s.stepDot, background: i <= step ? 'var(--accent)' : 'var(--border-strong)', width: i===step?22:8, borderRadius: i===step?4:'50%', transition:'all 0.2s'}}/>))}<span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',marginLeft:6,textTransform:'uppercase',letterSpacing:0.14}}>{steps[step].title}</span></div></div><button style={s.closeBtn} onClick={onClose}>×</button></div><div style={s.modalBody}>{steps[step].fields}</div><div style={s.modalFooter}>{step > 0 ? <button style={s.cancelBtn} onClick={()=>setStep(p=>p-1)}>← Back</button> : <button style={s.cancelBtn} onClick={onClose}>Cancel</button>}{step < steps.length-1 ? <button style={{...s.primaryBtn, opacity:canNext?1:0.5}} disabled={!canNext} onClick={()=>setStep(p=>p+1)}>Next →</button> : <button style={s.primaryBtn} onClick={handleSave}>{editing ? 'Save' : 'Create'}</button>}</div></div></div>);
 }
 
-function CategoryModal({onClose, onSave, editing}) {
+function CategoryModal({onClose, onSave, onDelete, editing, isAdmin}) {
 const [name, setName] = useState(editing?.name || ''); const [emoji, setEmoji] = useState(editing?.emoji || '📁'); const [customEmoji, setCustomEmoji] = useState('');
 const save = () => { if(!name.trim()) return; onSave({id:editing?.id || 'cat-'+Date.now().toString(36), name:name.trim(), emoji:(customEmoji||emoji).trim()||'📁', system:editing?.system||null, collapsed:editing?.collapsed??false, order:editing?.order??999}); onClose(); };
-return (<div style={s.overlay} onClick={onClose}><div style={{...s.modal,...s.modalSm}} onClick={e=>e.stopPropagation()}><div style={s.modalHeader}><div><div style={s.modalKicker}>{editing?'Edit':'New'} · Category</div><div style={s.modalTitle}>{editing?'Edit category':'New category'}</div></div><button style={s.closeBtn} onClick={onClose}>×</button></div><div style={s.modalBody}><label style={s.label}>Name *</label><input style={s.input} value={name} onChange={e=>setName(e.target.value)} autoFocus/><label style={s.label}>Emoji — pick one</label><div style={s.emojiGrid}>{EMOJI_GRID.map(em => (<div key={em} style={{...s.emojiCell, ...(emoji===em&&!customEmoji?s.emojiCellActive:{})}} onClick={()=>{setEmoji(em);setCustomEmoji('');}}>{em}</div>))}</div><label style={s.label}>Or paste any emoji</label><input style={s.input} value={customEmoji} onChange={e=>setCustomEmoji(e.target.value)} maxLength={4}/></div><div style={s.modalFooter}><button style={s.cancelBtn} onClick={onClose}>Cancel</button><button style={{...s.primaryBtn, opacity:name.trim()?1:0.5}} disabled={!name.trim()} onClick={save}>{editing?'Save':'Create'}</button></div></div></div>);
+return (<div style={s.overlay} onClick={onClose}><div style={{...s.modal,...s.modalSm}} onClick={e=>e.stopPropagation()}><div style={s.modalHeader}><div><div style={s.modalKicker}>{editing?'Edit':'New'} · Category</div><div style={s.modalTitle}>{editing?'Edit category':'New category'}</div></div><button style={s.closeBtn} onClick={onClose}>×</button></div><div style={s.modalBody}><label style={s.label}>Name *</label><input style={s.input} value={name} onChange={e=>setName(e.target.value)} autoFocus/><label style={s.label}>Emoji — pick one</label><div style={s.emojiGrid}>{EMOJI_GRID.map(em => (<div key={em} style={{...s.emojiCell, ...(emoji===em&&!customEmoji?s.emojiCellActive:{})}} onClick={()=>{setEmoji(em);setCustomEmoji('');}}>{em}</div>))}</div><label style={s.label}>Or paste any emoji</label><input style={s.input} value={customEmoji} onChange={e=>setCustomEmoji(e.target.value)} maxLength={4}/></div><div style={s.modalFooter}>{editing && !editing.system && onDelete && (<button style={{...s.cancelBtn, color:'var(--danger)', borderColor:'var(--danger)', marginRight:'auto'}} onClick={()=>{ onDelete(editing); onClose(); }}>{isAdmin ? '🗑 Delete' : '🗑 Request deletion'}</button>)}<button style={s.cancelBtn} onClick={onClose}>Cancel</button><button style={{...s.primaryBtn, opacity:name.trim()?1:0.5}} disabled={!name.trim()} onClick={save}>{editing?'Save':'Create'}</button></div></div></div>);
 }
 
 function ChannelTypePicker({onClose, onPickJob, onPickPlain, onPickMaterials, onPickCalendar, categoryName}) {
@@ -931,7 +931,62 @@ return (<div style={s.overlay} onClick={onClose}>
 </div>);
 }
 
-function ProjectTimesheetView({channel, timesheets, onAdd, onEdit, onConfirm, onDelete, onBulkConfirm, currentUser}) {
+function TimesheetDetailModal({entry, onClose, onEdit, currentUser}) {
+const canEdit = currentUser?.role === 'manager' || currentUser?.role === 'team_leader' || (currentUser?.role === 'crew' && entry.workerName === currentUser.name);
+const fh = entry.fieldHistory || {};
+return (<div style={s.overlay} onClick={onClose}>
+  <div style={{...s.modal,...s.modalSm}} onClick={e=>e.stopPropagation()}>
+    <div style={s.modalHeader}>
+      <div>
+        <div style={s.modalKicker}>Timesheet · {formatDate(entry.date)}</div>
+        <div style={s.modalTitle}>{entry.workerName}</div>
+      </div>
+      <button style={s.closeBtn} onClick={onClose}>×</button>
+    </div>
+    <div style={s.modalBody}>
+      <div style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,marginBottom:14,border:'1px solid var(--border)'}}>
+        <FieldWithHistory label="📅 Date" value={formatDate(entry.date)} history={(fh.date||[]).map(h=>({...h,value:h.value?formatDate(h.value):''}))}/>
+        <div style={{display:'flex',gap:14,alignItems:'baseline',marginBottom:6}}>
+          <FieldWithHistory label="⏱ Start" value={entry.startTime} history={fh.startTime}/>
+          <FieldWithHistory label="⏱ End" value={entry.endTime} history={fh.endTime}/>
+        </div>
+        <div style={{fontSize:13,color:'var(--accent-text)',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",marginTop:4}}>= {entry.hours} hours</div>
+      </div>
+      <div style={{...s.modalKicker,marginBottom:6}}>Description</div>
+      <FieldWithHistory value={entry.description} history={fh.description} multiline/>
+      <div style={{marginTop:14,padding:'10px 12px',background:'var(--bg-sunken)',borderRadius:7,border:'1px solid var(--border)'}}>
+        <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginBottom:6}}>Audit log</div>
+        <div style={{fontSize:11,color:'var(--text-muted)',display:'flex',justifyContent:'space-between',gap:8,padding:'4px 0',borderBottom:(entry.editHistory||[]).length>0?'1px solid var(--border)':'none'}}>
+          <span>📝 Submitted by <b>{entry.createdBy || entry.workerName}</b></span>
+          <span style={{fontFamily:"'JetBrains Mono',monospace"}}>{formatTime(entry.createdAt)}</span>
+        </div>
+        {(entry.editHistory || []).map((h, i) => (
+          <div key={i} style={{padding:'4px 0',borderBottom:i<entry.editHistory.length-1?'1px solid var(--border)':'none'}}>
+            <div style={{fontSize:11,color:'var(--text-muted)',display:'flex',justifyContent:'space-between',gap:8}}>
+              <span>✎ Edited by <b>{h.editedBy}</b> · changed: <span style={{color:'var(--accent-text)'}}>{(h.fields||[]).join(', ')}</span></span>
+              <span style={{fontFamily:"'JetBrains Mono',monospace"}}>{formatTime(h.editedAt)}</span>
+            </div>
+            {h.justification && (
+              <div style={{marginTop:4,padding:'6px 10px',background:'var(--warn-bg)',border:'1px solid var(--warn)',borderRadius:4,fontSize:11,color:'var(--warn)'}}>
+                <b>Justification:</b> {h.justification}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{marginTop:10,fontSize:11}}>
+        <span style={{...s.tsStatus, ...(entry.status==='confirmed'?s.tsConfirmed:s.tsPending)}}>{entry.status==='confirmed'?'✓ Confirmed':'⏳ Pending'}</span>
+      </div>
+    </div>
+    <div style={s.modalFooter}>
+      {canEdit && <button style={s.cancelBtn} onClick={()=>onEdit(entry)}>✎ Edit</button>}
+      <button style={s.primaryBtn} onClick={onClose}>Close</button>
+    </div>
+  </div>
+</div>);
+}
+
+function ProjectTimesheetView({channel, timesheets, onAdd, onEdit, onView, onConfirm, onDelete, onBulkConfirm, currentUser}) {
 const isCrew = currentUser?.role === 'crew';
 const canConfirm = currentUser?.role === 'manager' || currentUser?.role === 'team_leader';
 const entries = useMemo(() => {
@@ -978,7 +1033,8 @@ return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}>
                 {hasEdits && <span style={{marginLeft:6,fontSize:9,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--warn)',background:'var(--warn-bg)',padding:'1px 5px',borderRadius:3,border:'1px solid var(--warn)',textTransform:'uppercase',letterSpacing:0.2}}>edited ×{e.editHistory.length}</span>}
               </div>
               <span style={{...s.tsStatus, ...(e.status==='confirmed'?s.tsConfirmed:s.tsPending), cursor: canConfirm && e.status==='pending' ? 'pointer' : 'default'}} onClick={()=>{if(canConfirm && e.status==='pending') onConfirm(e.id);}}>{e.status==='confirmed'?'✓ Confirmed':'⏳ Pending'}</span>
-              {canEdit && onEdit && <button onClick={()=>onEdit(e)} style={{background:'var(--bg-raised)',border:'1px solid var(--border)',borderRadius:5,padding:'3px 8px',fontSize:10,fontWeight:600,color:'var(--text-muted)',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",letterSpacing:0.2}}>✎</button>}
+              {onView && <button onClick={()=>onView(e)} title="View details" style={{background:'var(--bg-raised)',border:'1px solid var(--border)',borderRadius:5,padding:'3px 8px',fontSize:10,fontWeight:600,color:'var(--text-muted)',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",letterSpacing:0.2}}>👁</button>}
+              {canEdit && onEdit && <button onClick={()=>onEdit(e)} title="Edit entry" style={{background:'var(--bg-raised)',border:'1px solid var(--border)',borderRadius:5,padding:'3px 8px',fontSize:10,fontWeight:600,color:'var(--text-muted)',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",letterSpacing:0.2}}>✎</button>}
               {canEdit && e.status === 'pending' && <button onClick={()=>onDelete(e.id)} style={{background:'none',border:'none',color:'var(--text-faint)',cursor:'pointer',fontSize:14,padding:'0 4px'}}>×</button>}
             </div>);
           })}
@@ -1327,13 +1383,132 @@ return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}><div 
 }
 
 function CalendarView({entries, jobChannels, allChannels, getCategory, onNewBooking, onEditBooking, onDeleteBooking, onJumpToProject, onMentionClick}) {
-const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); }); const [selectedEntryId, setSelectedEntryId] = useState(null);
-const year = cursor.getFullYear(); const month = cursor.getMonth(); const monthLabel = cursor.toLocaleDateString('en-NZ', {month:'long', year:'numeric'}); const firstDay = new Date(year, month, 1); const startOffset = firstDay.getDay(); const daysInMonth = new Date(year, month+1, 0).getDate(); const daysInPrev = new Date(year, month, 0).getDate(); const today = todayISO();
-const cells = []; for(let i = 0; i < startOffset; i++) { const day = daysInPrev - startOffset + 1 + i; cells.push({day, other:true, date: new Date(year, month-1, day).toISOString().slice(0,10)}); } for(let i = 1; i <= daysInMonth; i++) cells.push({day:i, other:false, date: new Date(year, month, i).toISOString().slice(0,10)}); while(cells.length % 7 !== 0) { const day = cells.length - daysInMonth - startOffset + 1; cells.push({day, other:true, date: new Date(year, month+1, day).toISOString().slice(0,10)}); }
-const entriesByDate = {}; entries.forEach(e => { (e.dates || []).forEach(d => { (entriesByDate[d] = entriesByDate[d] || []).push(e); }); });
+const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+const [selectedEntryId, setSelectedEntryId] = useState(null);
+const year = cursor.getFullYear(); const month = cursor.getMonth();
+const monthLabel = cursor.toLocaleDateString('en-NZ', {month:'long', year:'numeric'});
+const firstDay = new Date(year, month, 1);
+const startOffset = firstDay.getDay();
+const daysInMonth = new Date(year, month+1, 0).getDate();
+const daysInPrev = new Date(year, month, 0).getDate();
+const today = todayISO();
+
+const cells = [];
+for(let i = 0; i < startOffset; i++) { const day = daysInPrev - startOffset + 1 + i; cells.push({day, other:true, date: new Date(year, month-1, day).toISOString().slice(0,10)}); }
+for(let i = 1; i <= daysInMonth; i++) cells.push({day:i, other:false, date: new Date(year, month, i).toISOString().slice(0,10)});
+while(cells.length % 7 !== 0) { const day = cells.length - daysInMonth - startOffset + 1; cells.push({day, other:true, date: new Date(year, month+1, day).toISOString().slice(0,10)}); }
+
+const entriesByDate = {};
+entries.forEach(e => { (e.dates || []).forEach(d => { (entriesByDate[d] = entriesByDate[d] || []).push(e); }); });
 const runningWithColor = jobChannels.filter(p => p.status !== 'done').slice(0, 12);
-const selectedEntry = selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null; const selectedProject = selectedEntry ? jobChannels.find(p => p.id === selectedEntry.projectId) : null;
-return (<div><div style={s.calNav}><button style={s.calNavBtn} onClick={() => setCursor(new Date(year, month-1, 1))}>‹</button><div style={s.calMonth}>{monthLabel}</div><button style={s.calNavBtn} onClick={() => setCursor(new Date(year, month+1, 1))}>›</button></div>{runningWithColor.length > 0 && (<div style={s.legend}><span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginRight:4}}>Projects:</span>{runningWithColor.map(p => { const c = getColor(p.colorId); return (<span key={p.id} style={s.legendItem} onClick={()=>onJumpToProject(p.id)} role="button"><span style={{...s.legendDot, background:c.bar}}/>{p.name}</span>); })}</div>)}<div style={s.calGrid}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} style={s.calHeadCell}>{d}</div>)}{cells.map((c, i) => { const dayEntries = (entriesByDate[c.date] || []); return (<div key={i} style={{...s.calCell, ...(c.date === today ? s.calCellToday : {}), ...(c.other ? s.calCellOther : {})}} onClick={() => { if(!c.other) onNewBooking(c.date); }}><div style={s.calDay}>{c.day}</div>{dayEntries.length > 0 && (<div style={s.calBarsRow}>{dayEntries.slice(0,4).map(e => { const col = getColor(e.colorId); return (<div key={e.id} style={{...s.calBar, background:col.bar}} title={e.projectName + (e.comment ? ' — ' + e.comment : '')} onClick={(ev) => { ev.stopPropagation(); setSelectedEntryId(e.id); }}>◆ {dayEntries.length > 2 ? e.projectName.slice(0,10) : e.projectName}</div>); })}{dayEntries.length > 4 && (<div style={{...s.calBar, background:'var(--bg-sunken)', color:'var(--text-dim)'}}>+{dayEntries.length-4}</div>)}</div>)}</div>); })}</div>{selectedEntry && (<div style={s.entryDetail}><div style={s.entryHead}><div style={{...s.entryColorBar, background:getColor(selectedEntry.colorId).bar}}/><div style={{flex:1, minWidth:0}}><div style={s.entryProjectName} onClick={()=>onJumpToProject(selectedEntry.projectId)}>◆ {selectedEntry.projectName}</div><div style={{fontSize:12,color:'var(--text-dim)',marginTop:3}}>{selectedProject?.address || ''}</div></div><span style={s.entryDates}>{selectedEntry.days > 1 ? `${formatShortDate(selectedEntry.startDate)} → ${formatShortDate(addDays(selectedEntry.startDate, selectedEntry.days-1))} · ${selectedEntry.days} days` : `${formatShortDate(selectedEntry.startDate)} · 1 day`}</span></div>{selectedEntry.technicians && (<div style={s.entryField}><div style={s.entryFieldLabel}>Technicians</div><div style={s.entryFieldText}>{selectedEntry.technicians}</div></div>)}{selectedEntry.tools && (<div style={s.entryField}><div style={s.entryFieldLabel}>Tools / materials</div><div style={s.entryFieldText}>{renderWithMentions(selectedEntry.tools, allChannels, onMentionClick)}</div></div>)}{selectedEntry.comment && (<div style={s.entryField}><div style={s.entryFieldLabel}>Comment</div><div style={s.entryFieldText}>{renderWithMentions(selectedEntry.comment, allChannels, onMentionClick)}</div></div>)}<div style={{display:'flex',gap:8,marginTop:16,flexWrap:'wrap'}}><button style={s.copyBtn} onClick={()=>{ onEditBooking(selectedEntry); setSelectedEntryId(null); }}>✏ Edit</button><button style={{...s.copyBtn, color:'var(--danger)', borderColor:'var(--danger)'}} onClick={()=>{ if(confirm('Delete this booking?')) { onDeleteBooking(selectedEntry.id); setSelectedEntryId(null); } }}>🗑 Delete</button><button style={s.copyBtn} onClick={()=>setSelectedEntryId(null)}>Close</button></div></div>)}<div style={{display:'flex',justifyContent:'flex-end',marginTop:16}}><button style={s.calNewBtn} onClick={()=>onNewBooking(null)}>+ NEW BOOKING</button></div></div>);
+const selectedEntry = selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null;
+const selectedProject = selectedEntry ? jobChannels.find(p => p.id === selectedEntry.projectId) : null;
+
+return (<div>
+  <div style={s.calNav}>
+    <button style={s.calNavBtn} onClick={() => setCursor(new Date(year, month-1, 1))}>‹</button>
+    <div style={s.calMonth}>{monthLabel}</div>
+    <button style={s.calNavBtn} onClick={() => setCursor(new Date(year, month+1, 1))}>›</button>
+  </div>
+  {runningWithColor.length > 0 && (
+    <div style={s.legend}>
+      <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginRight:4}}>Projects:</span>
+      {runningWithColor.map(p => { const c = getColor(p.colorId); return (<span key={p.id} style={s.legendItem} onClick={()=>onJumpToProject(p.id)} role="button"><span style={{...s.legendDot, background:c.bar}}/>{p.name}</span>); })}
+    </div>
+  )}
+  <div style={{...s.calGrid, gridTemplateColumns:'repeat(7,minmax(0,1fr))'}}>
+    {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} style={s.calHeadCell}>{d}</div>)}
+    {cells.map((c, i) => {
+      const dayEntries = (entriesByDate[c.date] || []);
+      // Build set of all technicians in this date's entries (across all bookings)
+      const techsByEntry = dayEntries.map(e => {
+        const names = (e.technicians || '').split(',').map(t => t.trim()).filter(Boolean);
+        return {entry: e, names};
+      });
+      return (
+        <div key={i} style={{
+          ...s.calCell,
+          minHeight:120,
+          ...(c.date === today ? s.calCellToday : {}),
+          ...(c.other ? s.calCellOther : {})
+        }} onClick={() => { if(!c.other) onNewBooking(c.date); }}>
+          <div style={s.calDay}>{c.day}</div>
+          {dayEntries.length > 0 && (
+            <div style={{display:'flex',flexDirection:'column',gap:3,flex:1,minHeight:0}}>
+              {dayEntries.slice(0, 3).map(e => {
+                const col = getColor(e.colorId);
+                const techNames = (e.technicians || '').split(',').map(t => t.trim()).filter(Boolean);
+                return (
+                  <div key={e.id} style={{
+                    background:col.bar,
+                    color:'#fff',
+                    borderRadius:4,
+                    padding:'4px 6px',
+                    cursor:'pointer',
+                    display:'flex',
+                    flexDirection:'column',
+                    gap:3,
+                    overflow:'hidden',
+                  }} title={e.projectName + (e.comment ? ' — ' + e.comment : '')} onClick={(ev) => { ev.stopPropagation(); setSelectedEntryId(e.id); }}>
+                    <div style={{fontSize:10,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'flex',alignItems:'center',gap:3}}>
+                      <span>◆</span><span>{e.projectName}</span>
+                    </div>
+                    {techNames.length > 0 && (
+                      <div style={{display:'flex',gap:2,flexWrap:'wrap',alignItems:'center'}}>
+                        {techNames.slice(0, 6).map((n,j) => (
+                          <InitialsPin key={j} name={n} projectColor={col.bar} size={18}/>
+                        ))}
+                        {techNames.length > 6 && <span style={{fontSize:9,fontWeight:600,opacity:0.85,marginLeft:2}}>+{techNames.length-6}</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {dayEntries.length > 3 && (
+                <div style={{...s.calBar, background:'var(--bg-sunken)', color:'var(--text-dim)'}}>+{dayEntries.length-3} more</div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+  {selectedEntry && (
+    <div style={s.entryDetail}>
+      <div style={s.entryHead}>
+        <div style={{...s.entryColorBar, background:getColor(selectedEntry.colorId).bar}}/>
+        <div style={{flex:1, minWidth:0}}>
+          <div style={s.entryProjectName} onClick={()=>onJumpToProject(selectedEntry.projectId)}>◆ {selectedEntry.projectName}</div>
+          <div style={{fontSize:12,color:'var(--text-dim)',marginTop:3}}>{selectedProject?.address || ''}</div>
+        </div>
+        <span style={s.entryDates}>{selectedEntry.days > 1 ? `${formatShortDate(selectedEntry.startDate)} → ${formatShortDate(addDays(selectedEntry.startDate, selectedEntry.days-1))} · ${selectedEntry.days} days` : `${formatShortDate(selectedEntry.startDate)} · 1 day`}</span>
+      </div>
+      {selectedEntry.technicians && (
+        <div style={s.entryField}>
+          <div style={s.entryFieldLabel}>Technicians</div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginTop:4}}>
+            {selectedEntry.technicians.split(',').map(t => t.trim()).filter(Boolean).map((n,i) => (
+              <span key={i} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px 4px 4px',background:'var(--bg-raised)',borderRadius:14,border:'1px solid var(--border)'}}>
+                <InitialsPin name={n} projectColor={getColor(selectedEntry.colorId).bar} size={20}/>
+                <span style={{fontSize:12,color:'var(--text)'}}>{n}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {selectedEntry.tools && (<div style={s.entryField}><div style={s.entryFieldLabel}>Tools / materials</div><div style={s.entryFieldText}>{renderWithMentions(selectedEntry.tools, allChannels, onMentionClick)}</div></div>)}
+      {selectedEntry.comment && (<div style={s.entryField}><div style={s.entryFieldLabel}>Comment</div><div style={s.entryFieldText}>{renderWithMentions(selectedEntry.comment, allChannels, onMentionClick)}</div></div>)}
+      <div style={{display:'flex',gap:8,marginTop:16,flexWrap:'wrap'}}>
+        <button style={s.copyBtn} onClick={()=>{ onEditBooking(selectedEntry); setSelectedEntryId(null); }}>✏ Edit</button>
+        <button style={{...s.copyBtn, color:'var(--danger)', borderColor:'var(--danger)'}} onClick={()=>{ if(confirm('Delete this booking?')) { onDeleteBooking(selectedEntry.id); setSelectedEntryId(null); } }}>🗑 Delete</button>
+        <button style={s.copyBtn} onClick={()=>setSelectedEntryId(null)}>Close</button>
+      </div>
+    </div>
+  )}
+  <div style={{display:'flex',justifyContent:'flex-end',marginTop:16}}>
+    <button style={s.calNewBtn} onClick={()=>onNewBooking(null)}>+ NEW BOOKING</button>
+  </div>
+</div>);
 }
 
 function NotesFeed({channelId, threadId, notes, setNotes, placeholder, allChannels, onMentionClick, getCategory}) {
@@ -2024,6 +2199,102 @@ function getSuggestedTechniciansForDate(projectId, date, calendarEntries) {
   };
 }
 
+// ── PIN HELPERS (initials, color hash, contrast detection) ──────────────────
+// 12 distinct colors for pins, designed to look good on light AND dark mode
+const PIN_COLORS = [
+  {bg:'#0891b2', text:'#fff', name:'cyan'},      // matches accent
+  {bg:'#d97706', text:'#fff', name:'amber'},
+  {bg:'#7c3aed', text:'#fff', name:'violet'},
+  {bg:'#e11d48', text:'#fff', name:'rose'},
+  {bg:'#059669', text:'#fff', name:'emerald'},
+  {bg:'#0284c7', text:'#fff', name:'sky'},
+  {bg:'#c026d3', text:'#fff', name:'fuchsia'},
+  {bg:'#65a30d', text:'#fff', name:'lime'},
+  {bg:'#ea580c', text:'#fff', name:'orange'},
+  {bg:'#db2777', text:'#fff', name:'pink'},
+  {bg:'#0f766e', text:'#fff', name:'teal'},
+  {bg:'#9333ea', text:'#fff', name:'purple'},
+];
+
+function getInitials(name) {
+  if (!name || !name.trim()) return '??';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) {
+    // Single word: first 2 letters
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  // Multi-word: first letter of FIRST + first letter of LAST
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Hash a name string to a stable index in PIN_COLORS
+function hashStringToInt(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h) + str.charCodeAt(i);
+    h |= 0; // Convert to 32-bit int
+  }
+  return Math.abs(h);
+}
+
+function getPinColorForName(name) {
+  if (!name) return PIN_COLORS[0];
+  const idx = hashStringToInt(name) % PIN_COLORS.length;
+  return PIN_COLORS[idx];
+}
+
+// Compare two hex colors and return true if they're "too similar"
+function colorsAreSimilar(c1, c2) {
+  if (!c1 || !c2) return false;
+  // Quick check: identical
+  if (c1.toLowerCase() === c2.toLowerCase()) return true;
+  // Parse hex
+  const parse = (c) => {
+    let h = c.replace('#','');
+    if (h.length === 3) h = h.split('').map(x=>x+x).join('');
+    return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+  };
+  try {
+    const [r1,g1,b1] = parse(c1);
+    const [r2,g2,b2] = parse(c2);
+    const dist = Math.sqrt((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2);
+    return dist < 80;
+  } catch { return false; }
+}
+
+// Renders a circular initials "magnet" pin
+function InitialsPin({name, projectColor, size=22, title}) {
+  const color = getPinColorForName(name);
+  const initials = getInitials(name);
+  // If pin color clashes with project color, add white border ring
+  const needsRing = projectColor && colorsAreSimilar(color.bg, projectColor);
+  return (
+    <span
+      title={title || name}
+      style={{
+        display:'inline-flex',
+        alignItems:'center',
+        justifyContent:'center',
+        width:size,
+        height:size,
+        borderRadius:'50%',
+        background:color.bg,
+        color:color.text,
+        fontSize:Math.round(size * 0.42),
+        fontWeight:800,
+        fontFamily:"'Inter',sans-serif",
+        letterSpacing:0.3,
+        boxShadow:needsRing
+          ? '0 0 0 2px #fff, 0 0 0 3px ' + color.bg + ', 0 1px 2px rgba(0,0,0,0.3)'
+          : '0 1px 3px rgba(0,0,0,0.25), inset 0 0 0 1.5px rgba(255,255,255,0.25)',
+        flexShrink:0,
+        userSelect:'none',
+      }}>
+      {initials}
+    </span>
+  );
+}
+
 function loadEmailJsOnce() {
   if (typeof window === 'undefined') return Promise.resolve(null);
   if (window.emailjs) return Promise.resolve(window.emailjs);
@@ -2566,7 +2837,7 @@ return (<div style={{maxWidth:560}}>
 </div>);
 }
 
-function ThreadView({channel, thread, notes, setNotes, allChannels, incidents, onIncidentSubmit, onIncidentDelete, onIncidentEdit, onMentionClick, onJumpToProject, onUpdateMaterials, onAddMaterial, calendarEntries, onNewBooking, onEditBooking, onDeleteBooking, getCategory, allJobs, timesheets, onAddTimesheet, onEditTimesheet, onConfirmTimesheet, onDeleteTimesheet, onBulkConfirmTimesheet, crew, onAddCrew, onRemoveCrew, isMobile, company, currentUser, onUpdateCompany, toolboxes, onNewToolbox, onViewToolbox, onDeleteToolbox, ramsEntries, onNewRams, onViewRams, onDeleteRams}) {
+function ThreadView({channel, thread, notes, setNotes, allChannels, incidents, onIncidentSubmit, onIncidentDelete, onIncidentEdit, onMentionClick, onJumpToProject, onUpdateMaterials, onAddMaterial, calendarEntries, onNewBooking, onEditBooking, onDeleteBooking, getCategory, allJobs, timesheets, onAddTimesheet, onEditTimesheet, onViewTimesheet, onConfirmTimesheet, onDeleteTimesheet, onBulkConfirmTimesheet, crew, onAddCrew, onRemoveCrew, isMobile, company, currentUser, onUpdateCompany, toolboxes, onNewToolbox, onViewToolbox, onDeleteToolbox, ramsEntries, onNewRams, onViewRams, onDeleteRams}) {
 if(channel.type === 'plain') { if(channel.name === '📢announcements') { return <AnnouncementsView channel={channel} notes={notes} setNotes={setNotes} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>; } return <NotesFeed channelId={channel.id} threadId="main" notes={notes} setNotes={setNotes} placeholder={`Post in ${channel.name}... (type # to mention)`} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>; }
 if(channel.type === 'materials') return <MaterialsView channel={channel} onUpdate={onUpdateMaterials} onAdd={onAddMaterial}/>;
 if(channel.type === 'calendar') return <CalendarView entries={calendarEntries} jobChannels={allJobs} allChannels={allChannels} getCategory={getCategory} onNewBooking={onNewBooking} onEditBooking={onEditBooking} onDeleteBooking={onDeleteBooking} onJumpToProject={onJumpToProject} onMentionClick={onMentionClick} company={company}/>;
@@ -2577,14 +2848,14 @@ if(channel.type === 'roster') return <CrewRosterView crew={crew} onAdd={onAddCre
 if(channel.type === 'users') return <UsersView company={company} onUpdateCompany={onUpdateCompany} currentUser={currentUser}/>;
 if(channel.type === 'company-info') return <CompanyInfoView company={company} onUpdateCompany={onUpdateCompany}/>;
 if(thread.id === 'info') return <InfoDisplay channel={channel}/>;
-if(thread.id === 'timesheet') return <ProjectTimesheetView channel={channel} timesheets={timesheets} onAdd={onAddTimesheet} onEdit={onEditTimesheet} onConfirm={onConfirmTimesheet} onDelete={onDeleteTimesheet} onBulkConfirm={onBulkConfirmTimesheet} currentUser={currentUser}/>;
+if(thread.id === 'timesheet') return <ProjectTimesheetView channel={channel} timesheets={timesheets} onAdd={onAddTimesheet} onEdit={onEditTimesheet} onView={onViewTimesheet} onConfirm={onConfirmTimesheet} onDelete={onDeleteTimesheet} onBulkConfirm={onBulkConfirmTimesheet} currentUser={currentUser}/>;
 if(thread.id === 'incidents') return <ProjectIncidentsView channel={channel} incidents={incidents} allChannels={allChannels} onMentionClick={onMentionClick} onAdd={onIncidentSubmit} onDelete={onIncidentDelete} onEdit={onIncidentEdit} currentUser={currentUser}/>;
 if(thread.id === 'toolbox') return <ToolboxView project={channel} toolboxes={toolboxes} onNew={onNewToolbox} onView={onViewToolbox} onDelete={onDeleteToolbox} currentUser={currentUser}/>;
 if(thread.id === 'rams') return <RamsView project={channel} ramsEntries={ramsEntries} onNew={onNewRams} onView={onViewRams} onDelete={onDeleteRams} currentUser={currentUser}/>;
 return <NotesFeed channelId={channel.id} threadId={thread.id} notes={notes} setNotes={setNotes} placeholder={`Add a ${thread.label} note... (type # to mention)`} allChannels={allChannels} onMentionClick={onMentionClick} getCategory={getCategory}/>;
 }
 
-function CategoryBlock({category, channels, activeId, onSelect, onAddChannel, onEditCategory, getColor, onDragStart, onDragOver, onDrop, isDragging, canAddChannel, canEditCategory, canMoveChannel, onChannelDragStart, onChannelDrop}) {
+function CategoryBlock({category, channels, activeId, onSelect, onAddChannel, onEditCategory, getColor, onDragStart, onDragOver, onDrop, isDragging, canAddChannel, canEditCategory, canMoveChannel, onChannelDragStart, onChannelDrop, pendingDeletions}) {
 const [open, setOpen] = useState(!category.collapsed);
 const dragHandleRef = useRef(null);
 const [isDropTarget, setIsDropTarget] = useState(false);
@@ -2639,15 +2910,18 @@ return (<div style={{...s.catWrap, ...(isDragging ? s.catWrapDragging : {}), ...
     const col = ch.type === 'job' && ch.colorId && ch.status !== 'done' ? getColor(ch.colorId) : null;
     const tsCol = ch.type === 'ts-project' && ch.colorId ? getColor(ch.colorId) : null;
     const isDraggable = canMoveChannel && ch.type === 'job';
+    const hasPendingDeletion = (pendingDeletions || []).some(p => p.kind === 'channel' && p.targetId === ch.id && p.status === 'pending');
     return (
       <div key={ch.id}
-        draggable={isDraggable}
-        onDragStart={isDraggable ? (e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-channel-id', ch.id); onChannelDragStart && onChannelDragStart(ch); } : undefined}
-        style={{...s.chanItem, ...(isActive?s.chanItemActive:{}), ...(isDone?s.chanItemDone:{}), ...(isDraggable?{cursor:'grab'}:{})}}
-        onClick={()=>onSelect(ch.id)}>
+        draggable={isDraggable && !hasPendingDeletion}
+        onDragStart={isDraggable && !hasPendingDeletion ? (e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-channel-id', ch.id); onChannelDragStart && onChannelDragStart(ch); } : undefined}
+        style={{...s.chanItem, ...(isActive?s.chanItemActive:{}), ...(isDone?s.chanItemDone:{}), ...(isDraggable?{cursor:'grab'}:{}), ...(hasPendingDeletion ? {opacity:0.55, textDecoration:'line-through'} : {})}}
+        onClick={()=>onSelect(ch.id)}
+        title={hasPendingDeletion ? 'Pending deletion · awaiting admin approval' : undefined}>
         <span style={s.chanHash}>{hash}</span>
         <span style={{...s.chanName, ...(isActive?s.chanNameActive:{})}}>{ch.name}</span>
-        {col && <span style={{...s.chanDot, background:col.bar}}/>}
+        {hasPendingDeletion && <span style={{fontSize:9,color:'var(--warn)',fontFamily:"'JetBrains Mono',monospace",fontWeight:700}}>🔔 PENDING</span>}
+        {col && !hasPendingDeletion && <span style={{...s.chanDot, background:col.bar}}/>}
         {tsCol && <span style={{...s.chanDot, background:tsCol.bar}}/>}
       </div>
     );
@@ -2682,7 +2956,7 @@ return null;
 
 function App({company, currentUser, onLogout, onUpdateCompany}) {
 const k = (key) => 'th-co-' + company.id + ':' + key;
-const [theme, setTheme] = useTheme(); const [data, setData] = useStorage(k('data'), null); const [notes, setNotes] = useStorage(k('notes'), {}); const [incidents, setIncidents] = useStorage(k('incidents'), []); const [calendarEntries, setCalendarEntries] = useStorage(k('calendar'), null); const [crew, setCrew] = useStorage(k('crew'), []); const [timesheets, setTimesheets] = useStorage(k('timesheets'), null); const [toolboxes, setToolboxes] = useStorage(k('toolboxes'), []); const [ramsEntries, setRamsEntries] = useStorage(k('rams'), []); const [activeId, setActiveId] = useState(null); const [activeThreadId, setActiveThreadId] = useState('info'); const [showJobWizard, setShowJobWizard] = useState(false); const [editingJob, setEditingJob] = useState(null); const [jobTargetCategory, setJobTargetCategory] = useState('cat-run'); const [showShare, setShowShare] = useState(false); const [showCategoryModal, setShowCategoryModal] = useState(false); const [editingCategory, setEditingCategory] = useState(null); const [showTypePicker, setShowTypePicker] = useState(null); const [showAddThread, setShowAddThread] = useState(false); const [incidentModal, setIncidentModal] = useState(null); const [showAddMaterial, setShowAddMaterial] = useState(false); const [bookingModal, setBookingModal] = useState(null); const [sharedChannel, setSharedChannel] = useState(null); const [showTimesheetModal, setShowTimesheetModal] = useState(null); const [draggedCategory, setDraggedCategory] = useState(null); const [toolboxModal, setToolboxModal] = useState(null); const [viewToolbox, setViewToolbox] = useState(null); const [ramsModal, setRamsModal] = useState(null); const [viewRams, setViewRams] = useState(null);
+const [theme, setTheme] = useTheme(); const [data, setData] = useStorage(k('data'), null); const [notes, setNotes] = useStorage(k('notes'), {}); const [incidents, setIncidents] = useStorage(k('incidents'), []); const [calendarEntries, setCalendarEntries] = useStorage(k('calendar'), null); const [crew, setCrew] = useStorage(k('crew'), []); const [timesheets, setTimesheets] = useStorage(k('timesheets'), null); const [toolboxes, setToolboxes] = useStorage(k('toolboxes'), []); const [ramsEntries, setRamsEntries] = useStorage(k('rams'), []); const [pendingDeletions, setPendingDeletions] = useStorage(k('pendingDeletions'), []); const [activeId, setActiveId] = useState(null); const [activeThreadId, setActiveThreadId] = useState('info'); const [showJobWizard, setShowJobWizard] = useState(false); const [editingJob, setEditingJob] = useState(null); const [jobTargetCategory, setJobTargetCategory] = useState('cat-run'); const [showShare, setShowShare] = useState(false); const [showCategoryModal, setShowCategoryModal] = useState(false); const [editingCategory, setEditingCategory] = useState(null); const [showTypePicker, setShowTypePicker] = useState(null); const [showAddThread, setShowAddThread] = useState(false); const [incidentModal, setIncidentModal] = useState(null); const [showAddMaterial, setShowAddMaterial] = useState(false); const [bookingModal, setBookingModal] = useState(null); const [sharedChannel, setSharedChannel] = useState(null); const [showTimesheetModal, setShowTimesheetModal] = useState(null); const [draggedCategory, setDraggedCategory] = useState(null); const [toolboxModal, setToolboxModal] = useState(null); const [viewToolbox, setViewToolbox] = useState(null); const [ramsModal, setRamsModal] = useState(null); const [viewRams, setViewRams] = useState(null); const [showApprovalsModal, setShowApprovalsModal] = useState(false); const [viewIncident, setViewIncident] = useState(null); const [viewTimesheet, setViewTimesheet] = useState(null);
 const [isOnline, setIsOnline] = useState(typeof navigator==='undefined' || navigator.onLine!==false);
 const isMobile = useIsMobile();
 const [drawerOpen, setDrawerOpen] = useState(false);
@@ -2766,7 +3040,63 @@ const saveJob = (job) => {
 const createPlainChannel = (cid, name) => { const ch = {id:'ch-'+Date.now().toString(36), type:'plain', name, categoryId:cid, createdAt:new Date().toISOString()}; updateData(prev => ({...prev, channels:[ch, ...prev.channels]})); setActiveId(ch.id); setShowTypePicker(null); };
 const createMaterialsChannel = (cid, name) => { const ch = {id:'ch-'+Date.now().toString(36), type:'materials', name, categoryId:cid, materials:[], createdAt:new Date().toISOString()}; updateData(prev => ({...prev, channels:[ch, ...prev.channels]})); setActiveId(ch.id); setShowTypePicker(null); };
 const createCalendarChannel = (cid, name) => { const ch = {id:'ch-'+Date.now().toString(36), type:'calendar', name, categoryId:cid, createdAt:new Date().toISOString()}; updateData(prev => ({...prev, channels:[ch, ...prev.channels]})); setActiveId(ch.id); setShowTypePicker(null); };
-const deleteChannel = (id) => { const ch = d.channels.find(c => c.id === id); if(ch?.type === 'incidents-bin' || ch?.type === 'ts-overview') return alert('System channels cannot be deleted.'); if(!confirm('Delete this channel?')) return; updateData(prev => ({...prev, channels: prev.channels.filter(c => c.id !== id)})); if(activeId === id) setActiveId(null); };
+const isSuperAdmin = currentUser?.id === 'admin-shadow';
+const requestDeletion = (kind, id, name) => {
+  // kind: 'channel' | 'category'
+  // Already pending?
+  if ((pendingDeletions || []).some(p => p.kind === kind && p.targetId === id && p.status === 'pending')) {
+    return alert('A deletion request for this item is already pending admin approval.');
+  }
+  setPendingDeletions(prev => [...(prev||[]), {
+    id: 'pd-' + Date.now().toString(36),
+    kind, targetId: id, targetName: name,
+    requestedBy: currentUser?.name || '—',
+    requestedById: currentUser?.id,
+    requestedAt: new Date().toISOString(),
+    status: 'pending',
+  }]);
+  alert(`Deletion request for "${name}" submitted to Admin for approval.`);
+};
+
+const deleteChannel = (id) => {
+  const ch = d.channels.find(c => c.id === id);
+  if(ch?.type === 'incidents-bin' || ch?.type === 'ts-overview') return alert('System channels cannot be deleted.');
+  // Project channels (jobs) require admin approval
+  if (ch?.type === 'job' && !isSuperAdmin) {
+    return requestDeletion('channel', id, ch.name);
+  }
+  // Other channels (plain, materials, calendar, settings) — only manager and admin can delete
+  if (currentUser?.role !== 'manager' && !isSuperAdmin) {
+    return alert('Only managers and admins can delete channels.');
+  }
+  if(!confirm('Delete this channel?')) return;
+  updateData(prev => ({...prev, channels: prev.channels.filter(c => c.id !== id)}));
+  if(activeId === id) setActiveId(null);
+};
+// Process approval/rejection (admin only)
+const approveDeletion = (pdId) => {
+  const pd = (pendingDeletions || []).find(p => p.id === pdId);
+  if (!pd) return;
+  if (pd.kind === 'channel') {
+    updateData(prev => ({...prev, channels: prev.channels.filter(c => c.id !== pd.targetId)}));
+    if (activeId === pd.targetId) setActiveId(null);
+  } else if (pd.kind === 'category') {
+    updateData(prev => {
+      // Move all channels in this category to "Projects on Run" (for jobs) or just remove if other
+      const runCat = prev.categories.find(c => c.system === 'running');
+      const channels = prev.channels.map(c => c.categoryId === pd.targetId
+        ? (c.type === 'job' ? {...c, categoryId: runCat?.id || c.categoryId} : null)
+        : c
+      ).filter(Boolean);
+      const categories = prev.categories.filter(c => c.id !== pd.targetId);
+      return {...prev, channels, categories};
+    });
+  }
+  setPendingDeletions(prev => prev.map(p => p.id === pdId ? {...p, status:'approved', resolvedAt:new Date().toISOString(), resolvedBy:currentUser?.name||'Admin'} : p));
+};
+const rejectDeletion = (pdId, reason) => {
+  setPendingDeletions(prev => prev.map(p => p.id === pdId ? {...p, status:'rejected', rejectionReason:reason, resolvedAt:new Date().toISOString(), resolvedBy:currentUser?.name||'Admin'} : p));
+};
 const toggleStatus = (id) => { updateData(prev => ({...prev, channels: prev.channels.map(c => { if(c.id !== id) return c; const newStatus = c.status === 'done' ? 'running' : 'done'; const runCat = prev.categories.find(cat => cat.system === 'running'); const doneCat = prev.categories.find(cat => cat.system === 'done'); let newCatId = c.categoryId; if(newStatus === 'done' && c.categoryId === runCat?.id) newCatId = doneCat?.id || c.categoryId; if(newStatus === 'running' && c.categoryId === doneCat?.id) newCatId = runCat?.id || c.categoryId; let colorId = c.colorId; if(newStatus === 'running') { const others = prev.channels.filter(x => x.type === 'job' && x.id !== c.id && x.status !== 'done'); const taken = new Set(others.map(x => x.colorId)); if(!colorId || taken.has(colorId)) colorId = pickProjectColor([...others]); } return {...c, status: newStatus, categoryId: newCatId, colorId}; })})); };
 // Move a project channel to a different category (drag-and-drop)
 const moveChannelToCategory = (channelId, targetCategory) => {
@@ -2850,6 +3180,35 @@ return (<div style={s.app}>
     </div>
     <button onClick={onLogout} title="Logout" style={{padding:'4px 8px',background:'var(--bg-raised)',border:'1px solid var(--border)',borderRadius:5,fontSize:10,fontWeight:600,color:'var(--text-muted)',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.2}}>↩ Logout</button>
   </div>
+  {(() => {
+    const pendingCount = (pendingDeletions || []).filter(p => p.status === 'pending').length;
+    const myRequestsCount = (pendingDeletions || []).filter(p => p.requestedById === currentUser?.id).length;
+    if (pendingCount === 0 && myRequestsCount === 0) return null;
+    return (
+      <div style={{padding:'6px 14px 8px',borderBottom:'1px solid var(--border)'}}>
+        <button onClick={() => setShowApprovalsModal(true)} style={{
+          width:'100%',
+          padding:'8px 12px',
+          background: pendingCount > 0 && isSuperAdmin ? 'var(--warn-bg)' : 'var(--bg-raised)',
+          border: pendingCount > 0 && isSuperAdmin ? '1px solid var(--warn)' : '1px solid var(--border)',
+          borderRadius:6,
+          fontSize:11,
+          fontWeight:700,
+          color: pendingCount > 0 && isSuperAdmin ? 'var(--warn)' : 'var(--text-muted)',
+          cursor:'pointer',
+          fontFamily:"'JetBrains Mono',monospace",
+          textTransform:'uppercase',
+          letterSpacing:0.2,
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center',
+          gap:6
+        }}>
+          🔔 {isSuperAdmin ? `Pending approvals (${pendingCount})` : `My requests (${myRequestsCount})`}
+        </button>
+      </div>
+    );
+  })()}
   {(currentUser.role === 'manager' || currentUser.role === 'team_leader') && (
     <div style={s.actionBar}>
       <button style={s.actionBtn} onClick={() => { setEditingJob(null); setJobTargetCategory('cat-run'); setShowJobWizard(true); if(isMobile) setDrawerOpen(false); }}>+ NEW PROJECT</button>
@@ -2866,7 +3225,8 @@ return (<div style={s.app}>
         canEditCategory={currentUser.role === 'manager'}
         canMoveChannel={currentUser.role === 'manager' || currentUser.role === 'team_leader'}
         onChannelDragStart={()=>{}}
-        onChannelDrop={moveChannelToCategory}/>
+        onChannelDrop={moveChannelToCategory}
+        pendingDeletions={pendingDeletions || []}/>
     ))}
   </div>
   <div style={{padding:'8px 12px 12px',borderTop:'1px solid var(--border)'}}>
@@ -2917,13 +3277,13 @@ return (<div style={s.app}>
       </div>
     )}
     <div style={contentStyle}>
-      <ThreadView channel={channel} thread={currentThread} notes={notes} setNotes={setNotes} allChannels={allChannelsIncludingDynamic} incidents={incidents} onIncidentSubmit={() => setIncidentModal({})} onIncidentDelete={deleteIncident} onIncidentEdit={(inc)=>setIncidentModal({editing:inc})} onMentionClick={handleMentionClick} onJumpToProject={selectChannel} onUpdateMaterials={updateMaterials} onAddMaterial={() => setShowAddMaterial(true)} calendarEntries={calendarEntries || []} onNewBooking={(date) => setBookingModal({defaultDate: date})} onEditBooking={(entry) => setBookingModal({editing: entry})} onDeleteBooking={deleteBooking} getCategory={getCategory} allJobs={allJobs} timesheets={timesheets || []} onAddTimesheet={() => setShowTimesheetModal({projectId:channel.id, projectName:channel.name})} onEditTimesheet={(e)=>setShowTimesheetModal({projectId:e.projectId, projectName:e.projectName, editing:e})} onConfirmTimesheet={confirmTimesheetEntry} onDeleteTimesheet={deleteTimesheetEntry} onBulkConfirmTimesheet={bulkConfirmTimesheet} crew={crew} onAddCrew={addCrew} onRemoveCrew={removeCrew} isMobile={isMobile} company={company} currentUser={currentUser} onUpdateCompany={onUpdateCompany} toolboxes={toolboxes} onNewToolbox={()=>setToolboxModal({})} onViewToolbox={(tb)=>setViewToolbox(tb)} onDeleteToolbox={deleteToolbox} ramsEntries={ramsEntries} onNewRams={()=>setRamsModal({})} onViewRams={(r)=>setViewRams(r)} onDeleteRams={deleteRams}/>
+      <ThreadView channel={channel} thread={currentThread} notes={notes} setNotes={setNotes} allChannels={allChannelsIncludingDynamic} incidents={incidents} onIncidentSubmit={() => setIncidentModal({})} onIncidentDelete={deleteIncident} onIncidentEdit={(inc)=>setIncidentModal({editing:inc})} onMentionClick={handleMentionClick} onJumpToProject={selectChannel} onUpdateMaterials={updateMaterials} onAddMaterial={() => setShowAddMaterial(true)} calendarEntries={calendarEntries || []} onNewBooking={(date) => setBookingModal({defaultDate: date})} onEditBooking={(entry) => setBookingModal({editing: entry})} onDeleteBooking={deleteBooking} getCategory={getCategory} allJobs={allJobs} timesheets={timesheets || []} onAddTimesheet={() => setShowTimesheetModal({projectId:channel.id, projectName:channel.name})} onEditTimesheet={(e)=>setShowTimesheetModal({projectId:e.projectId, projectName:e.projectName, editing:e})} onViewTimesheet={(e)=>setViewTimesheet(e)} onConfirmTimesheet={confirmTimesheetEntry} onDeleteTimesheet={deleteTimesheetEntry} onBulkConfirmTimesheet={bulkConfirmTimesheet} crew={crew} onAddCrew={addCrew} onRemoveCrew={removeCrew} isMobile={isMobile} company={company} currentUser={currentUser} onUpdateCompany={onUpdateCompany} toolboxes={toolboxes} onNewToolbox={()=>setToolboxModal({})} onViewToolbox={(tb)=>setViewToolbox(tb)} onDeleteToolbox={deleteToolbox} ramsEntries={ramsEntries} onNewRams={()=>setRamsModal({})} onViewRams={(r)=>setViewRams(r)} onDeleteRams={deleteRams}/>
     </div>
   </>)}
 </div>
 {showJobWizard && (<JobWizard onClose={() => setShowJobWizard(false)} onSave={saveJob} editing={editingJob} company={company}/>)}
 {showShare && channel && channel.type === 'job' && (<ShareModal channel={channel} onClose={() => setShowShare(false)}/>)}
-{showCategoryModal && (<CategoryModal onClose={() => { setShowCategoryModal(false); setEditingCategory(null); }} onSave={saveCategory} editing={editingCategory}/>)}
+{showCategoryModal && (<CategoryModal onClose={() => { setShowCategoryModal(false); setEditingCategory(null); }} onSave={saveCategory} onDelete={(cat) => { if (isSuperAdmin) { if (confirm(`Delete category "${cat.name}"?\n\nProjects in this category will move to "Projects on Run". Other channels will be deleted.`)) { updateData(prev => { const runCat = prev.categories.find(c => c.system === 'running'); const channels = prev.channels.map(c => c.categoryId === cat.id ? (c.type === 'job' ? {...c, categoryId: runCat?.id || c.categoryId} : null) : c).filter(Boolean); return {...prev, categories: prev.categories.filter(c => c.id !== cat.id), channels}; }); } } else { requestDeletion('category', cat.id, cat.name); } }} editing={editingCategory} isAdmin={isSuperAdmin}/>)}
 {showTypePicker && (<ChannelTypePicker onClose={() => setShowTypePicker(null)} categoryName={showTypePicker.category.name} onPickJob={() => { setJobTargetCategory(showTypePicker.category.id); setEditingJob(null); setShowTypePicker(null); setShowJobWizard(true); }} onPickPlain={(name) => createPlainChannel(showTypePicker.category.id, name)} onPickMaterials={(name) => createMaterialsChannel(showTypePicker.category.id, name)} onPickCalendar={(name) => createCalendarChannel(showTypePicker.category.id, name)}/>)}
 {showAddThread && <AddThreadModal onClose={() => setShowAddThread(false)} onSave={addCustomThread}/>}
 {incidentModal && (() => {
@@ -2942,6 +3302,8 @@ return (<div style={s.app}>
 {viewToolbox && (<ToolboxDetailModal toolbox={viewToolbox} onClose={()=>setViewToolbox(null)} onEdit={(tb)=>{setToolboxModal({editing:tb});setViewToolbox(null);}} currentUser={currentUser}/>)}
 {ramsModal && channel && channel.type === 'job' && (<RamsFormModal onClose={()=>setRamsModal(null)} onSave={saveRams} project={channel} company={company} currentUser={currentUser} latestRams={latestRamsForProject(channel.id)} editing={ramsModal.editing} calendarEntries={calendarEntries||[]}/>)}
 {viewRams && (<RamsDetailModal rams={viewRams} onClose={()=>setViewRams(null)} onEdit={(r)=>{setRamsModal({editing:r});setViewRams(null);}} currentUser={currentUser}/>)}
+{viewTimesheet && (<TimesheetDetailModal entry={viewTimesheet} onClose={()=>setViewTimesheet(null)} onEdit={(e)=>{setShowTimesheetModal({projectId:e.projectId, projectName:e.projectName, editing:e}); setViewTimesheet(null);}} currentUser={currentUser}/>)}
+{showApprovalsModal && (<ApprovalsModal pendingDeletions={pendingDeletions} onClose={()=>setShowApprovalsModal(false)} onApprove={approveDeletion} onReject={rejectDeletion} isAdmin={isSuperAdmin} currentUser={currentUser}/>)}
 </div>);
 }
 
@@ -3123,6 +3485,99 @@ return (
 }
 
 // ── CREATE/EDIT COMPANY MODAL ────────────────────────────────────────────────
+// ── APPROVALS MODAL ─────────────────────────────────────────────────────────
+function ApprovalsModal({pendingDeletions, onClose, onApprove, onReject, isAdmin, currentUser}) {
+  const myRequests = (pendingDeletions || []).filter(p => p.requestedById === currentUser?.id);
+  const allRequests = (pendingDeletions || []).filter(p => p.status === 'pending');
+  const requestsToShow = isAdmin ? allRequests : myRequests;
+  const [rejectingId, setRejectingId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const statusBadge = (status) => {
+    if (status === 'pending') return <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--warn)',background:'var(--warn-bg)',padding:'3px 8px',borderRadius:4,border:'1px solid var(--warn)',textTransform:'uppercase',letterSpacing:0.2}}>⏳ Pending</span>;
+    if (status === 'approved') return <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--success)',background:'var(--success-bg)',padding:'3px 8px',borderRadius:4,border:'1px solid var(--success)',textTransform:'uppercase',letterSpacing:0.2}}>✓ Approved</span>;
+    if (status === 'rejected') return <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--danger)',background:'var(--danger-bg)',padding:'3px 8px',borderRadius:4,border:'1px solid var(--danger)',textTransform:'uppercase',letterSpacing:0.2}}>✕ Rejected</span>;
+    return null;
+  };
+
+  return (<div style={s.overlay} onClick={onClose}>
+    <div style={s.modal} onClick={e=>e.stopPropagation()}>
+      <div style={s.modalHeader}>
+        <div>
+          <div style={s.modalKicker}>{isAdmin ? 'Admin' : 'My requests'}</div>
+          <div style={s.modalTitle}>{isAdmin ? 'Pending approvals' : 'Deletion requests'}</div>
+        </div>
+        <button style={s.closeBtn} onClick={onClose}>×</button>
+      </div>
+      <div style={s.modalBody}>
+        {!isAdmin && myRequests.length > 0 && (
+          <div style={{marginBottom:14}}>
+            {myRequests.map(p => (
+              <div key={p.id} style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',marginBottom:8}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
+                  <span style={{fontSize:14}}>{p.kind === 'category' ? '📁' : '◆'}</span>
+                  <span style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{p.targetName}</span>
+                  <span style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:'var(--text-dim)',textTransform:'uppercase'}}>{p.kind === 'category' ? 'category' : 'project'}</span>
+                  <div style={{marginLeft:'auto'}}>{statusBadge(p.status)}</div>
+                </div>
+                <div style={{fontSize:11,color:'var(--text-dim)',fontFamily:"'JetBrains Mono',monospace"}}>Requested {formatTime(p.requestedAt)}</div>
+                {p.status === 'rejected' && p.rejectionReason && (
+                  <div style={{marginTop:8,padding:'8px 10px',background:'var(--danger-bg)',border:'1px solid var(--danger)',borderRadius:6,fontSize:12,color:'var(--danger)'}}>
+                    <b>Admin rejected:</b> {p.rejectionReason}
+                  </div>
+                )}
+                {p.status === 'approved' && p.resolvedAt && (
+                  <div style={{marginTop:6,fontSize:10,color:'var(--success)',fontFamily:"'JetBrains Mono',monospace"}}>Approved by {p.resolvedBy} · {formatTime(p.resolvedAt)}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {isAdmin && (
+          <>
+            <div style={{fontSize:13,color:'var(--text-dim)',marginBottom:14}}>{allRequests.length === 0 ? 'No pending approvals.' : `${allRequests.length} item${allRequests.length===1?'':'s'} awaiting your approval.`}</div>
+            {allRequests.map(p => (
+              <div key={p.id} style={{padding:'14px 16px',background:'var(--bg-raised)',borderRadius:8,border:'1px solid var(--warn)',marginBottom:10}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,flexWrap:'wrap'}}>
+                  <span style={{fontSize:18}}>{p.kind === 'category' ? '📁' : '◆'}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:700,color:'var(--text)'}}>{p.targetName}</div>
+                    <div style={{fontSize:11,color:'var(--text-dim)',fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase',letterSpacing:0.2,marginTop:2}}>delete {p.kind} · requested by {p.requestedBy} · {formatTime(p.requestedAt)}</div>
+                  </div>
+                </div>
+                {rejectingId === p.id ? (
+                  <div style={{padding:'10px',background:'var(--bg-input)',borderRadius:6,border:'1px solid var(--danger)',marginTop:8}}>
+                    <label style={s.label}>Reason for rejection (optional)</label>
+                    <textarea style={{...s.textarea,marginBottom:8,minHeight:60}} value={rejectReason} onChange={e=>setRejectReason(e.target.value)} placeholder="e.g. Project still active, need to keep records"/>
+                    <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                      <button style={s.cancelBtn} onClick={()=>{setRejectingId(null);setRejectReason('');}}>Cancel</button>
+                      <button style={{...s.primaryBtn,background:'var(--danger)',borderColor:'var(--danger)'}} onClick={()=>{onReject(p.id, rejectReason.trim()); setRejectingId(null); setRejectReason('');}}>Confirm rejection</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap'}}>
+                    <button style={{...s.primaryBtn,background:'var(--success)',borderColor:'var(--success)'}} onClick={()=>{ if(confirm(`Approve deletion of "${p.targetName}"?`)) onApprove(p.id); }}>✓ Approve & delete</button>
+                    <button style={{...s.cancelBtn,color:'var(--danger)',borderColor:'var(--danger)'}} onClick={()=>setRejectingId(p.id)}>✕ Reject</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+        {requestsToShow.length === 0 && !isAdmin && (
+          <div style={{...s.empty,height:140}}>
+            <span style={s.emptyIcon}>✓</span>
+            <span style={s.emptyText}>No deletion requests</span>
+          </div>
+        )}
+      </div>
+      <div style={s.modalFooter}>
+        <button style={s.primaryBtn} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  </div>);
+}
+
 function CompanyEditModal({onClose, onSave, editing}) {
 const [name, setName] = useState(editing?.name || '');
 const [logo, setLogo] = useState(editing?.logo || '');
