@@ -1385,6 +1385,7 @@ return (<div style={{height:'100%',display:'flex',flexDirection:'column'}}><div 
 function CalendarView({entries, jobChannels, allChannels, getCategory, onNewBooking, onEditBooking, onDeleteBooking, onJumpToProject, onMentionClick}) {
 const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
 const [selectedEntryId, setSelectedEntryId] = useState(null);
+const [selectedDayMerge, setSelectedDayMerge] = useState(null);
 const year = cursor.getFullYear(); const month = cursor.getMonth();
 const monthLabel = cursor.toLocaleDateString('en-NZ', {month:'long', year:'numeric'});
 const firstDay = new Date(year, month, 1);
@@ -1398,11 +1399,50 @@ for(let i = 0; i < startOffset; i++) { const day = daysInPrev - startOffset + 1 
 for(let i = 1; i <= daysInMonth; i++) cells.push({day:i, other:false, date: new Date(year, month, i).toISOString().slice(0,10)});
 while(cells.length % 7 !== 0) { const day = cells.length - daysInMonth - startOffset + 1; cells.push({day, other:true, date: new Date(year, month+1, day).toISOString().slice(0,10)}); }
 
-const entriesByDate = {};
-entries.forEach(e => { (e.dates || []).forEach(d => { (entriesByDate[d] = entriesByDate[d] || []).push(e); }); });
+// Merge entries: same project on same day = grouped together
+const mergedByDate = {};
+entries.forEach(e => {
+  (e.dates || []).forEach(d => {
+    if (!mergedByDate[d]) mergedByDate[d] = [];
+    let group = mergedByDate[d].find(g => g.projectId === e.projectId);
+    if (!group) {
+      group = {projectId: e.projectId, projectName: e.projectName, colorId: e.colorId, entries: [], allTechs: new Set()};
+      mergedByDate[d].push(group);
+    }
+    group.entries.push(e);
+    const techs = (e.technicians || '').split(',').map(t => t.trim()).filter(Boolean);
+    techs.forEach(t => group.allTechs.add(t));
+  });
+});
+Object.keys(mergedByDate).forEach(d => {
+  mergedByDate[d].forEach(g => { g.allTechs = [...g.allTechs]; });
+});
+
+// Conflict detection: tech in 2+ different projects same day
+const conflictsByDate = {};
+Object.keys(mergedByDate).forEach(d => {
+  const techCounts = {};
+  mergedByDate[d].forEach(g => {
+    g.allTechs.forEach(t => {
+      if (!techCounts[t]) techCounts[t] = [];
+      techCounts[t].push(g.projectName);
+    });
+  });
+  const conflicts = {};
+  Object.keys(techCounts).forEach(t => {
+    if (techCounts[t].length > 1) conflicts[t] = techCounts[t];
+  });
+  if (Object.keys(conflicts).length > 0) conflictsByDate[d] = conflicts;
+});
+
 const runningWithColor = jobChannels.filter(p => p.status !== 'done').slice(0, 12);
 const selectedEntry = selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null;
 const selectedProject = selectedEntry ? jobChannels.find(p => p.id === selectedEntry.projectId) : null;
+
+const totalConflictDays = Object.keys(conflictsByDate).filter(d => {
+  const date = new Date(d + 'T00:00:00');
+  return date.getMonth() === month && date.getFullYear() === year;
+}).length;
 
 return (<div>
   <div style={s.calNav}>
@@ -1410,6 +1450,12 @@ return (<div>
     <div style={s.calMonth}>{monthLabel}</div>
     <button style={s.calNavBtn} onClick={() => setCursor(new Date(year, month+1, 1))}>›</button>
   </div>
+  {totalConflictDays > 0 && (
+    <div style={{padding:'10px 14px',background:'var(--danger-bg)',border:'1px solid var(--danger)',borderRadius:8,marginBottom:12,display:'flex',alignItems:'center',gap:8,fontSize:12,color:'var(--danger)'}}>
+      <span style={{fontSize:16}}>⚠</span>
+      <span><b>{totalConflictDays} day{totalConflictDays===1?'':'s'} with double-booked technicians</b> — look for the red rings on pins.</span>
+    </div>
+  )}
   {runningWithColor.length > 0 && (
     <div style={s.legend}>
       <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:0.14,marginRight:4}}>Projects:</span>
@@ -1419,27 +1465,30 @@ return (<div>
   <div style={{...s.calGrid, gridTemplateColumns:'repeat(7,minmax(0,1fr))'}}>
     {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} style={s.calHeadCell}>{d}</div>)}
     {cells.map((c, i) => {
-      const dayEntries = (entriesByDate[c.date] || []);
-      // Build set of all technicians in this date's entries (across all bookings)
-      const techsByEntry = dayEntries.map(e => {
-        const names = (e.technicians || '').split(',').map(t => t.trim()).filter(Boolean);
-        return {entry: e, names};
-      });
+      const dayGroups = mergedByDate[c.date] || [];
+      const dayConflicts = conflictsByDate[c.date] || {};
+      const hasConflicts = Object.keys(dayConflicts).length > 0;
       return (
         <div key={i} style={{
           ...s.calCell,
           minHeight:120,
           ...(c.date === today ? s.calCellToday : {}),
-          ...(c.other ? s.calCellOther : {})
+          ...(c.other ? s.calCellOther : {}),
+          ...(hasConflicts && !c.other ? {borderColor:'var(--danger)', borderWidth:2} : {})
         }} onClick={() => { if(!c.other) onNewBooking(c.date); }}>
-          <div style={s.calDay}>{c.day}</div>
-          {dayEntries.length > 0 && (
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:4}}>
+            <div style={s.calDay}>{c.day}</div>
+            {hasConflicts && (
+              <span title={'Conflicts: ' + Object.keys(dayConflicts).map(n => n + ' in ' + dayConflicts[n].join(' + ')).join(' · ')} style={{fontSize:9,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'#fff',background:'var(--danger)',padding:'1px 5px',borderRadius:3,letterSpacing:0.2}}>⚠ {Object.keys(dayConflicts).length}</span>
+            )}
+          </div>
+          {dayGroups.length > 0 && (
             <div style={{display:'flex',flexDirection:'column',gap:3,flex:1,minHeight:0}}>
-              {dayEntries.slice(0, 3).map(e => {
-                const col = getColor(e.colorId);
-                const techNames = (e.technicians || '').split(',').map(t => t.trim()).filter(Boolean);
+              {dayGroups.slice(0, 3).map((g, gi) => {
+                const col = getColor(g.colorId);
+                const isMerged = g.entries.length > 1;
                 return (
-                  <div key={e.id} style={{
+                  <div key={gi} style={{
                     background:col.bar,
                     color:'#fff',
                     borderRadius:4,
@@ -1449,23 +1498,30 @@ return (<div>
                     flexDirection:'column',
                     gap:3,
                     overflow:'hidden',
-                  }} title={e.projectName + (e.comment ? ' — ' + e.comment : '')} onClick={(ev) => { ev.stopPropagation(); setSelectedEntryId(e.id); }}>
+                    border: isMerged ? '1px dashed rgba(255,255,255,0.5)' : 'none',
+                  }} title={g.projectName + (isMerged ? (' (' + g.entries.length + ' bookings merged)') : '')} onClick={(ev) => {
+                    ev.stopPropagation();
+                    if (isMerged) setSelectedDayMerge({date: c.date, projectId: g.projectId, projectName: g.projectName, entries: g.entries});
+                    else setSelectedEntryId(g.entries[0].id);
+                  }}>
                     <div style={{fontSize:10,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'flex',alignItems:'center',gap:3}}>
-                      <span>◆</span><span>{e.projectName}</span>
+                      <span>◆</span><span>{g.projectName}</span>
+                      {isMerged && <span style={{fontSize:8,opacity:0.85,fontFamily:"'JetBrains Mono',monospace",marginLeft:'auto'}}>×{g.entries.length}</span>}
                     </div>
-                    {techNames.length > 0 && (
+                    {g.allTechs.length > 0 && (
                       <div style={{display:'flex',gap:2,flexWrap:'wrap',alignItems:'center'}}>
-                        {techNames.slice(0, 6).map((n,j) => (
-                          <InitialsPin key={j} name={n} projectColor={col.bar} size={18}/>
-                        ))}
-                        {techNames.length > 6 && <span style={{fontSize:9,fontWeight:600,opacity:0.85,marginLeft:2}}>+{techNames.length-6}</span>}
+                        {g.allTechs.slice(0, 6).map((n,j) => {
+                          const conflict = dayConflicts[n] ? dayConflicts[n].filter(p => p !== g.projectName).join(' + ') : null;
+                          return <InitialsPin key={j} name={n} projectColor={col.bar} size={18} doubleBooked={!!conflict} title={conflict ? n + ' ⚠ also in: ' + conflict : n}/>;
+                        })}
+                        {g.allTechs.length > 6 && <span style={{fontSize:9,fontWeight:600,opacity:0.85,marginLeft:2}}>+{g.allTechs.length-6}</span>}
                       </div>
                     )}
                   </div>
                 );
               })}
-              {dayEntries.length > 3 && (
-                <div style={{...s.calBar, background:'var(--bg-sunken)', color:'var(--text-dim)'}}>+{dayEntries.length-3} more</div>
+              {dayGroups.length > 3 && (
+                <div style={{...s.calBar, background:'var(--bg-sunken)', color:'var(--text-dim)'}}>+{dayGroups.length-3} more</div>
               )}
             </div>
           )}
@@ -1473,26 +1529,84 @@ return (<div>
       );
     })}
   </div>
-  {selectedEntry && (
+  {selectedDayMerge && (() => {
+    const dayConflicts = conflictsByDate[selectedDayMerge.date] || {};
+    const proj = jobChannels.find(p => p.id === selectedDayMerge.projectId);
+    const projColor = proj ? getColor(proj.colorId) : null;
+    return (
+      <div style={s.entryDetail}>
+        <div style={s.entryHead}>
+          {projColor && <div style={{...s.entryColorBar, background:projColor.bar}}/>}
+          <div style={{flex:1, minWidth:0}}>
+            <div style={s.entryProjectName} onClick={()=>onJumpToProject(selectedDayMerge.projectId)}>◆ {selectedDayMerge.projectName}</div>
+            <div style={{fontSize:12,color:'var(--text-dim)',marginTop:3}}>{selectedDayMerge.entries.length} overlapping bookings on {formatDate(selectedDayMerge.date)}</div>
+          </div>
+        </div>
+        {selectedDayMerge.entries.map((e, ei) => {
+          const techNames = (e.technicians || '').split(',').map(t => t.trim()).filter(Boolean);
+          return (
+            <div key={e.id} style={{padding:'12px 14px',background:'var(--bg-raised)',borderRadius:7,border:'1px solid var(--border)',marginTop:10}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,flexWrap:'wrap'}}>
+                <span style={{fontSize:11,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:'var(--accent-text)',background:'var(--accent-bg)',padding:'3px 8px',borderRadius:4,border:'1px solid var(--accent)'}}>BOOKING #{ei+1}</span>
+                <span style={{fontSize:11,color:'var(--text-dim)',fontFamily:"'JetBrains Mono',monospace"}}>{e.days > 1 ? (formatShortDate(e.startDate) + ' → ' + formatShortDate(addDays(e.startDate, e.days-1)) + ' · ' + e.days + ' days') : (formatShortDate(e.startDate) + ' · 1 day')}</span>
+              </div>
+              {techNames.length > 0 && (
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginBottom:6}}>
+                  {techNames.map((n,j) => {
+                    const conflict = dayConflicts[n] ? dayConflicts[n].filter(p => p !== selectedDayMerge.projectName).join(' + ') : null;
+                    return (
+                      <span key={j} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'3px 8px 3px 3px',background:'var(--bg-panel)',borderRadius:14,border:'1px solid var(--border)'}}>
+                        <InitialsPin name={n} projectColor={projColor && projColor.bar} size={18} doubleBooked={!!conflict} title={conflict ? n + ' ⚠ also in: ' + conflict : n}/>
+                        <span style={{fontSize:11,color:'var(--text)'}}>{n}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              {e.comment && <div style={{fontSize:12,color:'var(--text-muted)',whiteSpace:'pre-wrap',marginTop:4}}>{e.comment}</div>}
+              <div style={{display:'flex',gap:6,marginTop:8}}>
+                <button style={{...s.copyBtn,fontSize:10}} onClick={()=>{ onEditBooking(e); setSelectedDayMerge(null); }}>✏ Edit</button>
+                <button style={{...s.copyBtn,fontSize:10,color:'var(--danger)',borderColor:'var(--danger)'}} onClick={()=>{ if(confirm('Delete this booking?')) { onDeleteBooking(e.id); setSelectedDayMerge(null); } }}>Delete</button>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{display:'flex',gap:8,marginTop:14}}>
+          <button style={s.copyBtn} onClick={()=>setSelectedDayMerge(null)}>Close</button>
+        </div>
+      </div>
+    );
+  })()}
+  {selectedEntry && !selectedDayMerge && (
     <div style={s.entryDetail}>
       <div style={s.entryHead}>
         <div style={{...s.entryColorBar, background:getColor(selectedEntry.colorId).bar}}/>
         <div style={{flex:1, minWidth:0}}>
           <div style={s.entryProjectName} onClick={()=>onJumpToProject(selectedEntry.projectId)}>◆ {selectedEntry.projectName}</div>
-          <div style={{fontSize:12,color:'var(--text-dim)',marginTop:3}}>{selectedProject?.address || ''}</div>
+          <div style={{fontSize:12,color:'var(--text-dim)',marginTop:3}}>{selectedProject && selectedProject.address || ''}</div>
         </div>
-        <span style={s.entryDates}>{selectedEntry.days > 1 ? `${formatShortDate(selectedEntry.startDate)} → ${formatShortDate(addDays(selectedEntry.startDate, selectedEntry.days-1))} · ${selectedEntry.days} days` : `${formatShortDate(selectedEntry.startDate)} · 1 day`}</span>
+        <span style={s.entryDates}>{selectedEntry.days > 1 ? (formatShortDate(selectedEntry.startDate) + ' → ' + formatShortDate(addDays(selectedEntry.startDate, selectedEntry.days-1)) + ' · ' + selectedEntry.days + ' days') : (formatShortDate(selectedEntry.startDate) + ' · 1 day')}</span>
       </div>
       {selectedEntry.technicians && (
         <div style={s.entryField}>
           <div style={s.entryFieldLabel}>Technicians</div>
           <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginTop:4}}>
-            {selectedEntry.technicians.split(',').map(t => t.trim()).filter(Boolean).map((n,i) => (
-              <span key={i} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px 4px 4px',background:'var(--bg-raised)',borderRadius:14,border:'1px solid var(--border)'}}>
-                <InitialsPin name={n} projectColor={getColor(selectedEntry.colorId).bar} size={20}/>
-                <span style={{fontSize:12,color:'var(--text)'}}>{n}</span>
-              </span>
-            ))}
+            {selectedEntry.technicians.split(',').map(t => t.trim()).filter(Boolean).map((n,i) => {
+              let conflict = null;
+              (selectedEntry.dates || []).forEach(d => {
+                const dc = conflictsByDate[d];
+                if (dc && dc[n]) {
+                  const others = dc[n].filter(p => p !== selectedEntry.projectName);
+                  if (others.length > 0) conflict = others.join(' + ') + (selectedEntry.dates.length > 1 ? (' (' + formatShortDate(d) + ')') : '');
+                }
+              });
+              return (
+                <span key={i} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px 4px 4px',background:'var(--bg-raised)',borderRadius:14,border:'1px solid var(--border)'}}>
+                  <InitialsPin name={n} projectColor={getColor(selectedEntry.colorId).bar} size={20} conflict={conflict}/>
+                  <span style={{fontSize:12,color:'var(--text)'}}>{n}</span>
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1500,7 +1614,7 @@ return (<div>
       {selectedEntry.comment && (<div style={s.entryField}><div style={s.entryFieldLabel}>Comment</div><div style={s.entryFieldText}>{renderWithMentions(selectedEntry.comment, allChannels, onMentionClick)}</div></div>)}
       <div style={{display:'flex',gap:8,marginTop:16,flexWrap:'wrap'}}>
         <button style={s.copyBtn} onClick={()=>{ onEditBooking(selectedEntry); setSelectedEntryId(null); }}>✏ Edit</button>
-        <button style={{...s.copyBtn, color:'var(--danger)', borderColor:'var(--danger)'}} onClick={()=>{ if(confirm('Delete this booking?')) { onDeleteBooking(selectedEntry.id); setSelectedEntryId(null); } }}>🗑 Delete</button>
+        <button style={{...s.copyBtn, color:'var(--danger)', borderColor:'var(--danger)'}} onClick={()=>{ if(confirm('Delete this booking?')) { onDeleteBooking(selectedEntry.id); setSelectedEntryId(null); } }}>Delete</button>
         <button style={s.copyBtn} onClick={()=>setSelectedEntryId(null)}>Close</button>
       </div>
     </div>
@@ -2199,6 +2313,39 @@ function getSuggestedTechniciansForDate(projectId, date, calendarEntries) {
   };
 }
 
+function getMergedDayBookings(date, calendarEntries) {
+  const byProject = {};
+  (calendarEntries || []).forEach(entry => {
+    if (!(entry.dates || []).includes(date)) return;
+    const pid = entry.projectId;
+    if (!byProject[pid]) {
+      byProject[pid] = {projectId:pid, projectName:entry.projectName, colorId:entry.colorId, entries:[], allTechs:new Set()};
+    }
+    byProject[pid].entries.push(entry);
+    if (entry.technicians) {
+      entry.technicians.split(',').map(t => t.trim()).filter(Boolean).forEach(n => byProject[pid].allTechs.add(n));
+    }
+  });
+  return Object.values(byProject).map(p => ({...p, allTechs:[...p.allTechs]}));
+}
+
+function getDoubleBookedTechsForDate(date, calendarEntries) {
+  const techProjects = {};
+  (calendarEntries || []).forEach(entry => {
+    if (!(entry.dates || []).includes(date)) return;
+    if (!entry.technicians) return;
+    entry.technicians.split(',').map(t => t.trim()).filter(Boolean).forEach(n => {
+      if (!techProjects[n]) techProjects[n] = new Set();
+      techProjects[n].add(entry.projectName);
+    });
+  });
+  const result = {};
+  Object.keys(techProjects).forEach(n => {
+    if (techProjects[n].size > 1) result[n] = [...techProjects[n]];
+  });
+  return result;
+}
+
 // ── PIN HELPERS (initials, color hash, contrast detection) ──────────────────
 // 12 distinct colors for pins, designed to look good on light AND dark mode
 const PIN_COLORS = [
@@ -2263,11 +2410,18 @@ function colorsAreSimilar(c1, c2) {
 }
 
 // Renders a circular initials "magnet" pin
-function InitialsPin({name, projectColor, size=22, title}) {
+function InitialsPin({name, projectColor, size=22, title, doubleBooked}) {
   const color = getPinColorForName(name);
   const initials = getInitials(name);
-  // If pin color clashes with project color, add white border ring
   const needsRing = projectColor && colorsAreSimilar(color.bg, projectColor);
+  let boxShadow;
+  if (doubleBooked) {
+    boxShadow = '0 0 0 2px #fff, 0 0 0 4px #dc2626, 0 1px 2px rgba(0,0,0,0.3)';
+  } else if (needsRing) {
+    boxShadow = '0 0 0 2px #fff, 0 0 0 3px ' + color.bg + ', 0 1px 2px rgba(0,0,0,0.3)';
+  } else {
+    boxShadow = '0 1px 3px rgba(0,0,0,0.25), inset 0 0 0 1.5px rgba(255,255,255,0.25)';
+  }
   return (
     <span
       title={title || name}
@@ -2284,9 +2438,7 @@ function InitialsPin({name, projectColor, size=22, title}) {
         fontWeight:800,
         fontFamily:"'Inter',sans-serif",
         letterSpacing:0.3,
-        boxShadow:needsRing
-          ? '0 0 0 2px #fff, 0 0 0 3px ' + color.bg + ', 0 1px 2px rgba(0,0,0,0.3)'
-          : '0 1px 3px rgba(0,0,0,0.25), inset 0 0 0 1.5px rgba(255,255,255,0.25)',
+        boxShadow,
         flexShrink:0,
         userSelect:'none',
       }}>
