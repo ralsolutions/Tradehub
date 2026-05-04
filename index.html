@@ -1387,6 +1387,7 @@ const [cursor, setCursor] = useState(() => { const d = new Date(); return new Da
 const [selectedEntryId, setSelectedEntryId] = useState(null);
 const [selectedDayMerge, setSelectedDayMerge] = useState(null);
 const year = cursor.getFullYear(); const month = cursor.getMonth();
+const canBook = currentUser?.role === 'manager' || currentUser?.role === 'team_leader';
 const monthLabel = cursor.toLocaleDateString('en-NZ', {month:'long', year:'numeric'});
 const firstDay = new Date(year, month, 1);
 const startOffset = firstDay.getDay();
@@ -1475,7 +1476,7 @@ return (<div>
           ...(c.date === today ? s.calCellToday : {}),
           ...(c.other ? s.calCellOther : {}),
           ...(hasConflicts && !c.other ? {borderColor:'var(--danger)', borderWidth:2} : {})
-        }} onClick={() => { if(!c.other) onNewBooking(c.date); }}>
+        }} onClick={() => { if(!c.other && canBook) onNewBooking(c.date); }}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:4}}>
             <div style={s.calDay}>{c.day}</div>
             {hasConflicts && (
@@ -1564,10 +1565,10 @@ return (<div>
                 </div>
               )}
               {e.comment && <div style={{fontSize:12,color:'var(--text-muted)',whiteSpace:'pre-wrap',marginTop:4}}>{e.comment}</div>}
-              <div style={{display:'flex',gap:6,marginTop:8}}>
+              {canBook && <div style={{display:'flex',gap:6,marginTop:8}}>
                 <button style={{...s.copyBtn,fontSize:10}} onClick={()=>{ onEditBooking(e); setSelectedDayMerge(null); }}>✏ Edit</button>
                 <button style={{...s.copyBtn,fontSize:10,color:'var(--danger)',borderColor:'var(--danger)'}} onClick={()=>{ if(confirm('Delete this booking?')) { onDeleteBooking(e.id); setSelectedDayMerge(null); } }}>Delete</button>
-              </div>
+              </div>}
             </div>
           );
         })}
@@ -1613,14 +1614,14 @@ return (<div>
       {selectedEntry.tools && (<div style={s.entryField}><div style={s.entryFieldLabel}>Tools / materials</div><div style={s.entryFieldText}>{renderWithMentions(selectedEntry.tools, allChannels, onMentionClick)}</div></div>)}
       {selectedEntry.comment && (<div style={s.entryField}><div style={s.entryFieldLabel}>Comment</div><div style={s.entryFieldText}>{renderWithMentions(selectedEntry.comment, allChannels, onMentionClick)}</div></div>)}
       <div style={{display:'flex',gap:8,marginTop:16,flexWrap:'wrap'}}>
-        <button style={s.copyBtn} onClick={()=>{ onEditBooking(selectedEntry); setSelectedEntryId(null); }}>✏ Edit</button>
-        <button style={{...s.copyBtn, color:'var(--danger)', borderColor:'var(--danger)'}} onClick={()=>{ if(confirm('Delete this booking?')) { onDeleteBooking(selectedEntry.id); setSelectedEntryId(null); } }}>Delete</button>
+        {canBook && <button style={s.copyBtn} onClick={()=>{ onEditBooking(selectedEntry); setSelectedEntryId(null); }}>✏ Edit</button>}
+        {canBook && <button style={{...s.copyBtn, color:'var(--danger)', borderColor:'var(--danger)'}} onClick={()=>{ if(confirm('Delete this booking?')) { onDeleteBooking(selectedEntry.id); setSelectedEntryId(null); } }}>Delete</button>}
         <button style={s.copyBtn} onClick={()=>setSelectedEntryId(null)}>Close</button>
       </div>
     </div>
   )}
   <div style={{display:'flex',justifyContent:'flex-end',marginTop:16}}>
-    <button style={s.calNewBtn} onClick={()=>onNewBooking(null)}>+ NEW BOOKING</button>
+    {canBook && <button style={s.calNewBtn} onClick={()=>onNewBooking(null)}>+ NEW BOOKING</button>}
   </div>
 </div>);
 }
