@@ -1097,12 +1097,12 @@ const toggleTool = (slug) => setSelectedTools(prev => prev.includes(slug) ? prev
 
 const commentRef = useRef(null);
 const commentMentions = useMentions(comment, setComment, allChannels, null, false);
-const endDate = useMemo(() => addDays(startDate, Math.max(0, days-1)), [startDate, days]);
+const endDate = useMemo(() => addDays(startDate, Math.max(0, (parseInt(String(days),10)||1)-1)), [startDate, days]);
 
 const save = () => {
   const project = jobChannels.find(c => c.id === projectId);
   if(!project) return alert('Pick a project.');
-  const d = parseInt(days);
+  const d = parseInt(String(days), 10);
   if(!d || d < 1) return alert('Days must be at least 1.');
   const technicians = selectedTechs.join(', ');
   const tools = selectedTools.map(s => '#' + s).join(' ');
@@ -1148,7 +1148,26 @@ return (<div style={s.overlay} onClick={onClose}>
         </div>
         <div>
           <label style={s.label}>Working days *</label>
-          <input style={s.input} type="number" min="1" max="60" value={days} onChange={e=>setDays(parseInt(e.target.value)||1)}/>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <button type="button" onClick={()=>setDays(d=>Math.max(1,d-1))} style={{width:34,height:34,borderRadius:6,border:'1px solid var(--border)',background:'var(--bg-raised)',color:'var(--text)',fontSize:16,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>−</button>
+            <input
+              style={{...s.input,marginBottom:0,textAlign:'center',fontWeight:700,fontSize:15,flex:1,minWidth:0}}
+              type="text"
+              inputMode="numeric"
+              value={days}
+              onChange={e => {
+                const raw = e.target.value.replace(/[^0-9]/g,'');
+                if (raw === '') { setDays(''); return; }
+                const n = parseInt(raw, 10);
+                if (!isNaN(n)) setDays(Math.min(60, Math.max(1, n)));
+              }}
+              onBlur={e => {
+                const n = parseInt(String(days), 10);
+                setDays(isNaN(n) || n < 1 ? 1 : Math.min(60, n));
+              }}
+            />
+            <button type="button" onClick={()=>setDays(d=>Math.min(60,Number(d||0)+1))} style={{width:34,height:34,borderRadius:6,border:'1px solid var(--border)',background:'var(--bg-raised)',color:'var(--text)',fontSize:16,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>+</button>
+          </div>
         </div>
       </div>
       <div style={{fontSize:11,color:'var(--text-dim)',marginTop:-10,marginBottom:16,fontFamily:"'JetBrains Mono',monospace"}}>
